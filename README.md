@@ -11,16 +11,25 @@ tools, no frameworks, no server. Open it in a browser and print.
 
 1. Open `index.html` in a browser. On a phone, open it from Files, from a
    link, or from the GitHub Pages address if this repo is published.
-2. Press **Regenerate** until you see a page you like. Every press draws a
+2. Pick an **Animal** (giraffe or horse) and a **Detail** level. Low gives
+   big calm areas and fewer, larger motifs; High packs in more bands, more
+   halo rings and finer patterns.
+3. Press **Regenerate** until you see a page you like. Every press draws a
    new variation.
-3. Press **Print**. On iPhone or iPad, the print button opens the share
+4. Press **Print**. On iPhone or iPad, the print button opens the share
    sheet's print dialog; on Android, Chrome opens its print preview.
-4. Choose **US Letter**, **portrait**, and turn scaling off or set it to
+5. Choose **US Letter**, **portrait**, and turn scaling off or set it to
    100%. The page is designed edge to edge for Letter with printer-safe
    margins built in, so "fit to page" is not needed.
 
-If you like a page, write down its **seed** number. Typing that seed back
-in reproduces the exact same page later.
+Every page prints a small label in its bottom border: the animal, the
+**seed** number and the detail level. Typing that seed back in, with the
+same animal and detail, reproduces the exact same page. The seed is also
+kept in the page address, so bookmarking the page works too.
+
+A seed reproduces a page for the version of `index.html` that made it.
+If the generator's code changes later, old seeds will still give a valid
+page, just not the identical one.
 
 ## How it works
 
@@ -35,10 +44,18 @@ together:
   SVG `clipPath`. Any pattern line that reaches the edge is cut there and
   the thick outline closes it. That is how every region ends up closed
   without any geometry math.
+- **Big regions are cut into bands.** Each large piece (the head, the
+  neck) has an "axis". Wavy dividers cross that axis and each band between
+  them gets its own pattern, or is left calm. Bands are clips nested
+  inside the region's clip, so they inherit its closed edge for free.
 - **A pattern family is one function.** Given a box, a random number
   generator and a spacing, it returns SVG elements. Spots, spirals, scales,
   chevrons, petals, mane strands. Every family is built from closed shapes
   or lines that run edge to edge, so it can never leave an unclosed pocket.
+- **The frame and halo use the same machinery.** The border is four
+  patterned rectangles plus corner medallions; the halo behind the head is
+  a set of donut-shaped regions with petals, beads, rays or zigzags. They
+  are ordinary regions, just with fixed patterns.
 - **Randomness is seeded.** A tiny seeded random generator means the same
   seed always produces the same page.
 - **Print sizing is baked in.** The SVG is US Letter at 100 units per inch
