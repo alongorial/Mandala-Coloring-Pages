@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mandala Coloring Pages</title>
+<style>
+  /* ---------- Screen layout ---------- */
+  body {
+    margin: 0;
+    font-family: -apple-system, system-ui, sans-serif;
+    background: #e9e6df;
+    color: #222;
+  }
+  .controls {
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 12px;
+    background: #fffdf7;
+    border-bottom: 1px solid #cfc9b8;
+  }
+  .controls label { font-size: 14px; }
+  .controls input {
+    width: 110px;
+    padding: 6px;
+    font-size: 16px;   /* 16px stops iPhone from zooming in on focus */
+  }
+  .controls button {
+    padding: 8px 14px;
+    font-size: 16px;
+    border-radius: 6px;
+    border: 1px solid #8a836f;
+    background: #f5f1e6;
+  }
+  .controls button.primary { background: #2f6f4e; color: white; border-color: #2f6f4e; }
+  .page {
+    display: block;
+    width: 100%;
+    max-width: 850px;
+    height: auto;
+    margin: 16px auto;
+    background: white;
+    box-shadow: 0 2px 12px rgba(0,0,0,.25);
+  }
+
+  /* ---------- Print layout ----------
+     The SVG is drawn in "page units" where 100 units = 1 inch, so the
+     850 x 1100 drawing is exactly US Letter. On paper we hide the
+     controls and size the SVG to the sheet. */
+  @page { size: letter portrait; margin: 0; }
+  @media print {
+    body { background: white; }
+    .controls { display: none; }
+    .page { width: 8.5in; height: 11in; margin: 0; box-shadow: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="controls">
+  <button class="primary" id="regen">Regenerate</button>
+  <label>Seed <input id="seed" type="number" inputmode="numeric"></label>
+  <button id="print">Print</button>
+</div>
+
+<!-- The drawing goes here. viewBox = the coordinate system we draw in. -->
+<svg class="page" id="page" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850 1100"></svg>
+
+<script>
+'use strict';
+
+/* =====================================================================
+   1. Sizes
+   Everything below is in page units: 100 units = 1 inch.
+   Stroke widths are chosen for a home inkjet: the outline is about
+   1 mm and the pattern lines about 0.4 mm. Nothing thinner than that.
+   ===================================================================== */
+const PAGE_W = 850, PAGE_H = 1100;
+const STROKE = { outline: 4.5, divider: 3, pattern: 1.7 };
+const FRAME_INSET = 45;   // distance from paper edge to the outer border
+
+/* =====================================================================
+   2. Seeded randomness
+   Math.random() cannot be replayed. This tiny generator (mulberry32)
+   always produces the same sequence for the same seed, which is what
+   lets a seed number reproduce a page exactly.
+   ===================================================================== */
+function makeRng(seed) {
+  let a = seed >>> 0;
+  const next = () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;   // 0 <= x < 1
+  };
+  return {
+    next,
+    range: (lo, hi) => lo + next() * (hi - lo),          // float in [lo, hi)
+    int:   (lo, hi) => Math.floor(lo + next() * (hi - lo + 1)), // integer in [lo, hi]
+    pick:  (arr)    => arr[Math.floor(next() * arr.length)],
+    chance:(p)      => next() < p,
+  };
+}
+
+/* =====================================================================
+   3. Small SVG helpers
+   el() builds an SVG element with attributes and children so the rest
+   of the file reads like a description of the drawing.
+   ===================================================================== */
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function el(name, attrs = {}, children = []) {
+  const node = document.createElementNS(SVG_NS, name);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  for (const c of children) node.appendChild(c);
+  return node;
+}
+// Format a number for a path string: 1 decimal keeps the file small.
+const f = (n) => Math.round(n * 10) / 10;
+// Turn a list of [x, y] points into a path string ("M x y L x y ...").
+function polyPath(points, close = false) {
+  return points.map(([x, y], i) => `${i ? 'L' : 'M'}${f(x)} ${f(y)}`).join(' ') + (close ? ' Z' : '');
+}
+
+/* =====================================================================
+   4. Pattern families
+   Each family is a function (box, rng, spacing) -> list of SVG elements.
+   "box" is the rectangle to cover; the caller clips the result to the
+   real region, so a family only has to fill a rectangle generously.
+   Every family is made of closed shapes, so it never leaves an
+   unclosed pocket for a marker to leak out of.
+   ===================================================================== */
+
+// Giraffe spots: a staggered grid of irregular polygons. Each spot is
+// smaller than half the grid spacing so neighbours never touch, which
+// keeps the gaps between spots as one connected, closed "background".
+function spots(box, rng, spacing) {
+  const out = [];
+  const rowH = spacing * 0.87;                  // hexagonal packing
+  let row = 0;
+  for (let y = box.y - spacing; y < box.y + box.h + spacing; y += rowH, row++) {
+    const shift = (row % 2) * spacing / 2;
+    for (let x = box.x - spacing + shift; x < box.x + box.w + spacing; x += spacing) {
+      const cx = x + rng.range(-0.04, 0.04) * spacing;
+      const cy = y + rng.range(-0.04, 0.04) * spacing;
+      const sides = rng.int(5, 8);
+      const r = spacing * rng.range(0.34, 0.43);   // biggest spot + jitter still < half the spacing
+      const start = rng.range(0, Math.PI * 2);
+      const pts = [];
+      for (let i = 0; i < sides; i++) {
+        const a = start + (i / sides) * Math.PI * 2 + rng.range(-0.15, 0.15);
+        const rr = r * rng.range(0.72, 1);
+        pts.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]);
+      }
+      out.push(el('path', { d: polyPath(pts, true), 'stroke-linejoin': 'round' }));
+    }
+  }
+  return out;
+}
+
+// Spirals: a staggered grid of circles, each holding a spiral that
+// starts at the centre and ends on the circle. The disk stays one
+// closed region (a winding ribbon), and the gaps between circles are
+// closed by the circles themselves plus the region outline.
+function spirals(box, rng, spacing) {
+  const out = [];
+  const rowH = spacing * 0.87;
+  let row = 0;
+  for (let y = box.y - spacing; y < box.y + box.h + spacing; y += rowH, row++) {
+    const shift = (row % 2) * spacing / 2;
+    for (let x = box.x - spacing + shift; x < box.x + box.w + spacing; x += spacing) {
+      const r = spacing * 0.46;
+      const turns = rng.range(1.6, 2.6);
+      const dir = rng.chance(0.5) ? 1 : -1;
+      const a0 = rng.range(0, Math.PI * 2);
+      const steps = Math.ceil(turns * 28);
+      const pts = [];
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;                              // 0 at centre, 1 at rim
+        const a = a0 + dir * t * turns * Math.PI * 2;
+        const rr = r * t;
+        pts.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]);
+      }
+      out.push(el('circle', { cx: f(x), cy: f(y), r: f(r) }));
+      out.push(el('path', { d: polyPath(pts) }));
+    }
+  }
+  return out;
+}
+
+/* =====================================================================
+   5. The giraffe
+   The animal is a jigsaw of closed paths in page coordinates, facing
+   left. Regions are listed back-to-front: things drawn later cover
+   things drawn earlier, and each region paints itself white first so
+   the overlaps are hidden.
+   Each region: { d: path string, pattern: family, spacing }.
+   ===================================================================== */
+function giraffe(rng) {
+  const bottom = PAGE_H;   // the neck runs off the bottom of the page and the frame closes it
+
+  const neck = `
+    M548 415
+    C600 560, 665 790, 695 ${bottom}
+    L425 ${bottom}
+    C445 880, 465 700, 470 560
+    C490 510, 520 460, 548 415 Z`;
+
+  const ear = `
+    M525 300
+    C570 262, 625 232, 660 232
+    C668 242, 645 292, 585 330
+    C570 340, 555 350, 540 356 Z`;
+
+  const innerEar = `
+    M548 308
+    C580 285, 615 262, 640 258
+    C640 270, 620 295, 585 318
+    C572 325, 560 332, 552 336 Z`;
+
+  // The two ossicones (the horn-like knobs). Their bases sit a little
+  // inside the skull so the head, drawn afterwards, covers the joint.
+  const ossicone = (bx, tipX) => `
+    M${bx} 285
+    C${bx + 2} 250, ${tipX - 16} 232, ${tipX - 15} 212
+    C${tipX - 32} 200, ${tipX - 24} 168, ${tipX} 168
+    C${tipX + 24} 168, ${tipX + 32} 200, ${tipX + 15} 212
+    C${tipX + 16} 232, ${bx + 44} 250, ${bx + 46} 285 Z`;
+
+  const head = `
+    M165 470
+    C195 425, 240 380, 300 340
+    C330 318, 352 300, 382 282
+    C412 265, 452 258, 492 265
+    C522 272, 542 295, 550 330
+    C558 360, 554 390, 548 415
+    C520 460, 490 510, 470 560
+    C420 582, 330 588, 265 575
+    C230 568, 210 562, 205 552
+    C185 540, 160 512, 165 470 Z`;
+
+  const eye = `
+    M362 362
+    C378 336, 422 336, 442 358
+    C422 382, 378 384, 362 362 Z`;
+
+  const nostril = `
+    M214 448
+    C204 440, 206 428, 218 428
+    C226 428, 230 440, 222 452
+    C218 456, 216 452, 214 448 Z`;
+
+  return {
+    regions: [
+      { d: neck,               pattern: spots,   spacing: 74 },
+      { d: ear,                pattern: null },
+      { d: innerEar,           pattern: spirals, spacing: 34 },
+      { d: ossicone(404, 428), pattern: spirals, spacing: 30 },
+      { d: ossicone(458, 482), pattern: spirals, spacing: 30 },
+      { d: head,               pattern: spots,   spacing: 54,
+        // A wavy divider separates the plain muzzle from the spotted face.
+        parts: [
+          { side: 'left', curve: [[262, 250], [292, 640]], pattern: spirals, spacing: 46 },
+        ] },
+      { d: eye,                pattern: null },
+      { d: nostril,            pattern: null },
+    ],
+    // Thin details drawn on top: they are strokes, not regions.
+    details: [
+      el('circle', { cx: 404, cy: 358, r: 12 }),                   // iris
+      el('circle', { cx: 404, cy: 358, r: 5, fill: 'black' }),     // pupil
+      el('path',   { d: 'M168 498 C190 512, 215 518, 240 520' }),  // mouth
+    ],
+  };
+}
+
+/* =====================================================================
+   6. Regions, clipping and dividers
+   A region is drawn as: clipPath of its outline -> a white fill -> the
+   pattern, all clipped to the outline. The outline stroke is drawn
+   later on top, so any pattern line that reaches the edge is cut off
+   and closed by the outline. That is what guarantees closed regions.
+
+   A region may have "parts": a wavy curve splits it, and the part on
+   one side of the curve gets its own pattern. The part is itself a
+   clip nested inside the region clip.
+   ===================================================================== */
+let idCounter = 0;
+const nextId = () => 'c' + (++idCounter);
+
+// A wavy polyline from p0 to p1, extended past both ends so that when it
+// is used as a divider it always crosses the whole region.
+function wavyCurve(p0, p1, rng, amplitude) {
+  const [x0, y0] = p0, [x1, y1] = p1;
+  const dx = x1 - x0, dy = y1 - y0;
+  const len = Math.hypot(dx, dy);
+  const nx = -dy / len, ny = dx / len;               // unit normal
+  const waves = rng.range(1.2, 2.4), phase = rng.range(0, Math.PI * 2);
+  const pts = [];
+  const n = 40;
+  for (let i = -4; i <= n + 4; i++) {
+    const t = i / n;
+    const wob = Math.sin(t * waves * Math.PI * 2 + phase) * amplitude;
+    pts.push([x0 + dx * t + nx * wob, y0 + dy * t + ny * wob]);
+  }
+  return pts;
+}
+
+// Build a big closed polygon covering everything on one side of a curve.
+function sideOfCurve(curve, side) {
+  const big = 3000;
+  const first = curve[0], last = curve[curve.length - 1];
+  // Close the polygon far away on the requested side.
+  const far = side === 'left'
+    ? [[last[0] - big, last[1]], [first[0] - big, first[1]]]
+    : [[last[0] + big, last[1]], [first[0] + big, first[1]]];
+  return polyPath([...curve, ...far], true);
+}
+
+function drawRegion(svg, defs, fills, region, rng) {
+  const outline = el('path', { d: region.d });
+  const clipId = nextId();
+  defs.appendChild(el('clipPath', { id: clipId }, [outline.cloneNode()]));
+
+  // Measure the region so patterns know which rectangle to cover.
+  svg.appendChild(outline);
+  const bb = outline.getBBox();
+  svg.removeChild(outline);
+  const box = { x: bb.x, y: bb.y, w: bb.width, h: bb.height };
+
+  const group = el('g', { 'clip-path': `url(#${clipId})` });
+  group.appendChild(el('path', { d: region.d, fill: 'white' }));
+
+  if (region.pattern) {
+    const pat = el('g', { fill: 'none', stroke: 'black', 'stroke-width': STROKE.pattern });
+    for (const node of region.pattern(box, rng, region.spacing)) pat.appendChild(node);
+    group.appendChild(pat);
+  }
+
+  for (const part of region.parts || []) {
+    const curve = wavyCurve(part.curve[0], part.curve[1], rng, 14);
+    const partClip = nextId();
+    defs.appendChild(el('clipPath', { id: partClip }, [el('path', { d: sideOfCurve(curve, part.side) })]));
+    const pg = el('g', { 'clip-path': `url(#${partClip})` });
+    pg.appendChild(el('path', { d: region.d, fill: 'white' }));
+    const pat = el('g', { fill: 'none', stroke: 'black', 'stroke-width': STROKE.pattern });
+    for (const node of part.pattern(box, rng, part.spacing)) pat.appendChild(node);
+    pg.appendChild(pat);
+    group.appendChild(pg);
+    // The divider line itself, clipped to the region so it ends on the outline.
+    group.appendChild(el('path', { d: polyPath(curve), fill: 'none', stroke: 'black',
+      'stroke-width': STROKE.divider, 'stroke-linecap': 'round' }));
+  }
+
+  fills.appendChild(group);
+  // The outline goes straight after the fill. A region drawn later paints
+  // white over this one, which hides the join where two pieces overlap
+  // (for example the ear base tucked behind the head).
+  fills.appendChild(el('path', { d: region.d, fill: 'none', stroke: 'black',
+    'stroke-width': STROKE.outline, 'stroke-linejoin': 'round' }));
+}
+
+/* =====================================================================
+   7. The frame
+   For now: a double border. The animal is clipped to the inner border
+   so the neck runs cleanly off the page and the border closes it.
+   ===================================================================== */
+function drawFrame(svg) {
+  const o = FRAME_INSET, i = FRAME_INSET + 14;
+  const g = el('g', { fill: 'none', stroke: 'black' });
+  g.appendChild(el('rect', { x: o, y: o, width: PAGE_W - 2 * o, height: PAGE_H - 2 * o, 'stroke-width': STROKE.outline }));
+  g.appendChild(el('rect', { x: i, y: i, width: PAGE_W - 2 * i, height: PAGE_H - 2 * i, 'stroke-width': STROKE.pattern }));
+  svg.appendChild(g);
+  return { x: i, y: i, w: PAGE_W - 2 * i, h: PAGE_H - 2 * i };
+}
+
+/* =====================================================================
+   8. Putting a page together
+   ===================================================================== */
+function render(seed) {
+  const svg = document.getElementById('page');
+  svg.innerHTML = '';
+  idCounter = 0;
+  const rng = makeRng(seed);
+
+  const defs = el('defs');
+  svg.appendChild(defs);
+  svg.appendChild(el('rect', { width: PAGE_W, height: PAGE_H, fill: 'white' }));
+
+  const inner = drawFrame(svg);
+
+  // Everything of the animal lives inside the inner border.
+  const artClip = nextId();
+  defs.appendChild(el('clipPath', { id: artClip }, [
+    el('rect', { x: inner.x, y: inner.y, width: inner.w, height: inner.h })]));
+  const art = el('g', { 'clip-path': `url(#${artClip})` });
+  const fills = el('g');
+  const details = el('g', { fill: 'none', stroke: 'black', 'stroke-width': STROKE.divider,
+    'stroke-linecap': 'round' });
+  art.append(fills, details);
+  svg.appendChild(art);
+
+  const animal = giraffe(rng);
+  for (const region of animal.regions) drawRegion(svg, defs, fills, region, rng);
+  for (const d of animal.details) details.appendChild(d);
+}
+
+/* =====================================================================
+   9. Controls
+   The seed lives in the page address (#seed=123) so a page can be
+   bookmarked or shared and comes back identical.
+   ===================================================================== */
+const seedInput = document.getElementById('seed');
+
+function readSeedFromUrl() {
+  const m = location.hash.match(/seed=(\d+)/);
+  return m ? Number(m[1]) : null;
+}
+function setSeed(seed) {
+  seedInput.value = seed;
+  history.replaceState(null, '', '#seed=' + seed);
+  render(seed);
+}
+const randomSeed = () => Math.floor(Math.random() * 1_000_000);
+
+document.getElementById('regen').addEventListener('click', () => setSeed(randomSeed()));
+document.getElementById('print').addEventListener('click', () => window.print());
+seedInput.addEventListener('change', () => setSeed(Number(seedInput.value) || 0));
+
+setSeed(readSeedFromUrl() ?? randomSeed());
+</script>
+</body>
+</html>
