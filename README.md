@@ -45,6 +45,21 @@ as text you can copy to another device (or download as a file), and
 good, paste an export into `favorites.json` in this repo: the published
 page loads that file and merges it with whatever is on the device.
 
+### Taste
+
+The Favorites panel also has a **Taste** section: one number per pattern
+family saying how likely it is to be chosen (1 is neutral, 2 twice as
+likely, 0.5 half). **Learn from favorites** proposes numbers from your
+likes and dislikes; nothing changes until you press **Apply**, and you can
+type numbers yourself. A favorite remembers the numbers it was made with,
+so it still reproduces exactly after your taste changes.
+
+### Learning
+
+`LEARNING.md` is the guide: the tools, how the generator thinks, the
+design theory behind mandala pages, and exercises to try by hand.
+`lab.html` is the pattern lab that goes with it.
+
 A seed reproduces a page for the generator **version** that made it. The
 version is the small "v3" at the end of the label. When the drawing code
 changes, the version number goes up, and old seeds still give a valid page,
@@ -98,6 +113,8 @@ it (controls, printing). A few ideas make the whole thing hang together:
   view showing each animal's pieces and band axes.
 - `generator.js`: everything that draws. Written in browser JavaScript no
   newer than about 2017 so older tablets can run it.
+- `LEARNING.md`: the learning guide (tools, how it works, design theory,
+  exercises).
 - `favorites.json`: curated ratings, pasted in from an export. Starts
   empty.
 - `.github/workflows/pages.yml`: publishes the repo to GitHub Pages

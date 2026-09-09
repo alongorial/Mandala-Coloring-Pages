@@ -69,6 +69,9 @@
   .card .actions button { flex: 1; min-height: 36px; padding: 4px; font-size: 14px; }
   .panel textarea { width: 100%; height: 120px; margin-top: 8px; }
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+  .weights { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 12px; margin-top: 8px; }
+  .weights label { justify-content: space-between; }
+  .weights input { width: 80px; }
 
   /* ---------- Print layout ----------
      The SVG is drawn in "page units" where 100 units = 1 inch, so the
@@ -128,6 +131,19 @@
     <a id="download" hidden download="mandala-favorites.json">Download file</a>
   </div>
   <textarea id="transfer" placeholder="Export puts your ratings here as text. To import, paste ratings here and press Import." hidden></textarea>
+
+  <h2 style="margin-top:16px">Taste</h2>
+  <p class="hint">Each number is how likely a family is to be chosen: 1 is
+  neutral, 2 is twice as likely, 0.5 half as likely. "Learn from favorites"
+  proposes numbers from your likes and dislikes; nothing changes until you
+  press Apply. You can also type numbers yourself.</p>
+  <div class="row">
+    <button id="learn">Learn from favorites</button>
+    <button id="apply-weights">Apply</button>
+    <button id="reset-weights">Reset to neutral</button>
+  </div>
+  <div class="weights" id="weights"></div>
+  <p class="hint" id="weights-note"></p>
 </div>
 
 <!-- The rating bar. Thumbs first; the reason chips appear once a page has a vote. -->
@@ -182,7 +198,7 @@ function apply(settings) {
   history.replaceState(null, '', `#subject=${settings.subject}&detail=${settings.detail}&seed=${settings.seed}`);
   const result = render($('page'), settings);
   $('status').hidden = true;
-  current = Object.assign({}, settings, { version: GENERATOR_VERSION, recipe: result.recipe });
+  current = Object.assign({}, settings, { version: GENERATOR_VERSION, recipe: result.recipe, weights: result.weights });
   showRatingFor(current);
 }
 
@@ -234,7 +250,7 @@ function vote(kind) {
     upsertRating({
       id: pageId(current), subject: current.subject, detail: current.detail, seed: current.seed,
       version: current.version, vote: kind, tags: existing ? existing.tags : [],
-      recipe: current.recipe, when: new Date().toISOString(),
+      recipe: current.recipe, weights: current.weights, when: new Date().toISOString(),
     });
   }
   showRatingFor(current);
@@ -313,7 +329,7 @@ function makeCard(r) {
   const open = document.createElement('button');
   open.textContent = 'Open';
   open.addEventListener('click', () => {
-    apply({ subject: r.subject, detail: r.detail, seed: r.seed });
+    apply({ subject: r.subject, detail: r.detail, seed: r.seed, weights: r.weights });
     window.scrollTo(0, 0);
     if (r.version !== GENERATOR_VERSION) {
       $('status').hidden = false;
@@ -327,7 +343,7 @@ function makeCard(r) {
   actions.append(open, remove);
   card.appendChild(actions);
   // Draw the thumbnail after the card is on screen (getBBox needs that).
-  setTimeout(() => render(svg, { subject: r.subject, detail: r.detail, seed: r.seed }), 0);
+  setTimeout(() => render(svg, { subject: r.subject, detail: r.detail, seed: r.seed, weights: r.weights }), 0);
   return card;
 }
 
@@ -387,6 +403,105 @@ if (location.protocol.indexOf('http') === 0 && window.fetch) {
   fetch('favorites.json').then(r => r.ok ? r.text() : '').then(text => { if (text) mergeRatings(text); }).catch(() => {});
 }
 
+/* =====================================================================
+   Taste
+   Ratings carry the recipe of each page, so we can count how often each
+   family appears on liked pages minus how often on disliked ones. The
+   proposal nudges a family's weight by a tenth per net vote, and never
+   below 0.3 or above 3, so no family ever disappears or takes over.
+   ===================================================================== */
+const WEIGHTS_KEY = 'mandala-weights';
+
+function loadWeights() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(WEIGHTS_KEY));
+    if (saved && saved.families) return saved;
+  } catch (e) { /* ignore */ }
+  return null;
+}
+function saveWeights(w) {
+  try { localStorage.setItem(WEIGHTS_KEY, JSON.stringify(w)); } catch (e) { /* ignore */ }
+}
+function setWeights(w) {
+  for (const group in DEFAULT_WEIGHTS) {
+    for (const name in DEFAULT_WEIGHTS[group]) {
+      WEIGHTS[group][name] = (w && w[group] && w[group][name] != null) ? Number(w[group][name]) : 1;
+    }
+  }
+}
+const groupLabel = { families: 'patterns', halo: 'halo rings', frame: 'frame' };
+
+// Show one number box per family, filled from the given table.
+function showWeights(table, note) {
+  const box = $('weights');
+  box.innerHTML = '';
+  for (const group in DEFAULT_WEIGHTS) {
+    for (const name in DEFAULT_WEIGHTS[group]) {
+      const label = document.createElement('label');
+      label.innerHTML = `<span>${name} <span class="hint">(${groupLabel[group]})</span></span>`;
+      const input = document.createElement('input');
+      input.type = 'number'; input.step = '0.1'; input.min = '0.05'; input.max = '5';
+      input.value = Number(table[group][name]).toFixed(1);
+      input.dataset.group = group; input.dataset.name = name;
+      label.appendChild(input);
+      box.appendChild(label);
+    }
+  }
+  $('weights-note').textContent = note || '';
+}
+function readWeightsFromBoxes() {
+  const w = JSON.parse(JSON.stringify(DEFAULT_WEIGHTS));
+  for (const input of $('weights').querySelectorAll('input')) {
+    w[input.dataset.group][input.dataset.name] = Math.max(0.05, Number(input.value) || 1);
+  }
+  return w;
+}
+function proposeWeights() {
+  const net = {};   // net[group][name] = likes minus dislikes
+  let used = 0;
+  for (const r of loadRatings()) {
+    if (!r.recipe) continue;
+    used++;
+    const sign = r.vote === 'like' ? 1 : -1;
+    for (const step of r.recipe) {
+      const group = step.part === 'halo' ? 'halo' : step.part === 'frame' ? 'frame' : 'families';
+      if (step.family === 'calm') continue;
+      net[group] = net[group] || {};
+      net[group][step.family] = (net[group][step.family] || 0) + sign;
+    }
+  }
+  const w = JSON.parse(JSON.stringify(DEFAULT_WEIGHTS));
+  for (const group in w) {
+    for (const name in w[group]) {
+      const n = (net[group] && net[group][name]) || 0;
+      w[group][name] = Math.min(3, Math.max(0.3, 1 + 0.1 * n));
+    }
+  }
+  return { weights: w, used };
+}
+
+$('learn').addEventListener('click', () => {
+  const p = proposeWeights();
+  showWeights(p.weights, p.used
+    ? `Proposed from ${p.used} rating${p.used === 1 ? '' : 's'}. Press Apply to use these numbers.`
+    : 'No ratings yet, so everything stays neutral.');
+});
+$('apply-weights').addEventListener('click', () => {
+  const w = readWeightsFromBoxes();
+  setWeights(w);
+  saveWeights(w);
+  showWeights(WEIGHTS, 'Applied. New pages use these numbers; favorites keep the numbers they were made with.');
+  apply(currentSettings());
+});
+$('reset-weights').addEventListener('click', () => {
+  setWeights(null);
+  saveWeights(WEIGHTS);
+  showWeights(WEIGHTS, 'Back to neutral.');
+  apply(currentSettings());
+});
+
+setWeights(loadWeights());
+showWeights(WEIGHTS, '');
 apply(readSettingsFromUrl());
 </script>
 </body>

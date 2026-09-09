@@ -21,7 +21,7 @@
 // Bump this whenever anything that affects the drawing changes. A seed
 // only reproduces a page for the version that made it, so the version is
 // printed on the page label and saved with every favorite.
-const GENERATOR_VERSION = 4;
+const GENERATOR_VERSION = 5;
 
 const PAGE_W = 850, PAGE_H = 1100;
 const STROKE = { outline: 4.5, divider: 3, pattern: 1.7 };
@@ -302,6 +302,32 @@ const DIRECTIONAL = new Set([scales, chevrons, strands]);
 // as a texture, so each family scales the region's spacing a little.
 const DENSITY = { spots: 1, spirals: 0.85, petals: 0.9, scales: 0.62, chevrons: 0.5, strands: 0.42 };
 
+// Taste weights. Every choice the generator makes between families is a
+// weighted draw from one of these tables: a weight of 2 makes a family
+// twice as likely as one at 1, and 0.5 half as likely. All 1 means no
+// preference. The favorites panel can propose new weights from your
+// ratings, and you can edit them by hand; a page remembers the weights
+// it was made with so a favorite still reproduces exactly.
+const DEFAULT_WEIGHTS = {
+  families: { spots: 1, spirals: 1, petals: 1, scales: 1, chevrons: 1, strands: 1 },
+  halo:     { petals: 1, beads: 1, rays: 1, zigzag: 1 },
+  frame:    { scales: 1, chevrons: 1, spirals: 1 },
+};
+let WEIGHTS = JSON.parse(JSON.stringify(DEFAULT_WEIGHTS));
+
+// Pick one name from a list, with the odds given by a weight table.
+// A weight that is missing counts as 1; nothing ever drops below 0.05,
+// so a family can be made rare but never impossible.
+function weightedPick(rng, names, table) {
+  const w = names.map(n => Math.max(0.05, table && table[n] != null ? table[n] : 1));
+  let r = rng.next() * w.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < names.length; i++) {
+    r -= w[i];
+    if (r < 0) return names[i];
+  }
+  return names[names.length - 1];
+}
+
 /* =====================================================================
    5. Regions, clipping, bands
    A region is drawn as: clipPath of its outline -> a white fill -> the
@@ -361,7 +387,7 @@ function planBands(ctx, region) {
     // At most one calm band per region, and never a region with no pattern at all.
     const calmHere = i === calmIndex || (!calmUsed && count > 1 && rng.chance(detail.calm));
     if (!calmHere) {
-      family = rng.pick(region.families.filter(name => name !== last));
+      family = weightedPick(rng, region.families.filter(name => name !== last), ctx.weights.families);
     } else {
       calmUsed = true;
     }
@@ -648,7 +674,7 @@ function drawFrame(ctx) {
   const rect = (x, y, w, h) => `M${x} ${y} h${w} v${h} h${-w} Z`;
 
   // One family for all four sides so the frame feels like one object.
-  const family = rng.pick([scales, chevrons, spirals]);
+  const family = FAMILIES[weightedPick(rng, ['scales', 'chevrons', 'spirals'], ctx.weights.frame)];
   ctx.recipe.push({ part: 'frame', family: family.name });
   const spacing = W * (family === scales ? 0.9 : 0.8);
   const sides = [
@@ -692,7 +718,7 @@ function drawHalo(ctx, halo) {
   let last = null;
   for (let k = 0; k < detail.rings; k++) {
     const rIn = halo.r + k * (width + gap), rOut = rIn + width;
-    const kind = rng.pick(kinds.filter(x => x !== last));
+    const kind = weightedPick(rng, kinds.filter(x => x !== last), ctx.weights.halo);
     last = kind;
     ctx.recipe.push({ part: 'halo', band: k, family: kind });
     drawRegion(ctx, { d: ringPath(halo.cx, halo.cy, rIn, rOut), evenodd: true,
@@ -715,6 +741,7 @@ function render(svg, settings) {
   // in each band, ring and frame. Favorites save it so we can later see
   // which choices keep getting liked.
   const recipe = [];
+  const weights = settings.weights || WEIGHTS;
 
   const defs = el('defs');
   svg.appendChild(defs);
@@ -722,7 +749,7 @@ function render(svg, settings) {
 
   const frameLayer = el('g');
   svg.appendChild(frameLayer);
-  const inner = drawFrame({ svg, defs, layer: frameLayer, rng, detail, recipe });
+  const inner = drawFrame({ svg, defs, layer: frameLayer, rng, detail, recipe, weights });
 
   // Everything inside the inner border lives in one clipped group, so
   // the neck and the halo run cleanly off the edge and the border
@@ -737,7 +764,7 @@ function render(svg, settings) {
   art.append(layer, details);
   svg.appendChild(art);
 
-  const ctx = { svg, defs, layer, rng, detail, recipe };
+  const ctx = { svg, defs, layer, rng, detail, recipe, weights };
   const animal = ANIMALS[subject]();
   cornerFan(ctx, inner.x, inner.y, 1, 1);
   cornerFan(ctx, inner.x + inner.w, inner.y, -1, 1);
@@ -755,5 +782,5 @@ function render(svg, settings) {
   svg.appendChild(el('text', { x: PAGE_W / 2, y: ly + 4, 'text-anchor': 'middle',
     'font-family': 'Georgia, serif', 'font-size': 11, fill: 'black' }, [document.createTextNode(label)]));
 
-  return { label, recipe };
+  return { label, recipe, weights };
 }
