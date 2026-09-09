@@ -154,6 +154,16 @@ the weights it was made with and uses them again when you press Open.
 These are the qualities that make a page satisfying to color, and where
 each one lives in the code. Use the lab to see them in isolation.
 
+### Depth without shading
+
+A coloring page has no grey, so depth has to come from somewhere else.
+This generator uses two devices, and `drawBackground` relies on both.
+**Order**: the background is drawn first and the animal's regions paint
+themselves white, so the animal simply covers it, no clipping required.
+**Weight**: the background is drawn in `STROKE.light`, thinner than the
+animal. Order alone would let the animal sit on the background; weight is
+what pushes the background further away.
+
 ### Foreground and background: line weight as depth
 
 Look at the reference giraffe: the head is drawn in firm lines and the
@@ -278,7 +288,11 @@ edit the file, reload.
 11. **Weave the other way.** In `knotwork`, find `under(j, k)` and change
     `(j + k)` to `(j + k + 1)`. Every crossing swaps which band is on top,
     so the whole braid reverses. One character, a different weave.
-12. **A twelfth family.** Copy `chevrons`, rename the copy `waves`, and
+12. **Denser scrollwork.** In `scrollField`, change `size * 1.95` to
+    `size * 1.5` and set Behind to Scrollwork. The rings of scrolls crowd
+    together. That one number is the whole difference between an airy
+    background and a thicket.
+13. **A twelfth family.** Copy `chevrons`, rename the copy `waves`, and
    replace the zigzag points with a sine wave (`Math.sin`). Add `waves` to
    `FAMILIES`, `DENSITY`, `DIRECTIONAL` and `DEFAULT_WEIGHTS.families`,
    then to one region's `families` list. Bump `GENERATOR_VERSION`. Open

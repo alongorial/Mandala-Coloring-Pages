@@ -21,7 +21,7 @@
 // Bump this whenever anything that affects the drawing changes. A seed
 // only reproduces a page for the version that made it, so the version is
 // printed on the page label and saved with every favorite.
-const GENERATOR_VERSION = 11;
+const GENERATOR_VERSION = 12;
 
 const PAGE_W = 850, PAGE_H = 1100;
 const STROKE = { outline: 4.5, divider: 3, pattern: 1.7, light: 1.3 };   // light: background ornament, still 0.33 mm
@@ -685,8 +685,10 @@ function drawRegion(ctx, region) {
   // The outline goes straight after the fill. A region drawn later paints
   // white over this one, which hides the join where two pieces overlap
   // (for example the ear base tucked behind the head).
-  layer.appendChild(el('path', { d: region.d, fill: 'none', stroke: 'black',
-    'stroke-width': region.thin ? STROKE.divider : STROKE.outline, 'stroke-linejoin': 'round' }));
+  if (!region.noOutline) {
+    layer.appendChild(el('path', { d: region.d, fill: 'none', stroke: 'black',
+      'stroke-width': region.thin ? STROKE.divider : STROKE.outline, 'stroke-linejoin': 'round' }));
+  }
 }
 
 /* =====================================================================
@@ -1328,6 +1330,68 @@ function drawHalo(ctx, halo, maxR) {
   }
 }
 
+// A field of acanthus scrolls circling the animal: rings of scrolls, each
+// turned to follow its ring, growing outward until the page is covered.
+// This is the reference giraffe's background, and it is nothing more than
+// the scroll motif placed on polar coordinates instead of a grid.
+function scrollField(cx, cy, rIn, rOut, size, rng) {
+  const out = [];
+  const step = size * 1.95;
+  let ring = 0;
+  for (let R = rIn + step * 0.5; R < rOut; R += step, ring++) {
+    const n = Math.max(6, Math.round(2 * Math.PI * R / step));
+    const a0 = rng.range(0, Math.PI * 2);
+    const face = ring % 2 === 0 ? 90 : -90;      // alternate rings face the other way
+    // A scalloped vine threading through the scrolls of this ring. It is
+    // what turns a scatter of separate curls into one flowing field, and
+    // being a closed loop it leaves nothing open.
+    const vine = [];
+    for (let t = 0; t <= n * 6; t++) {
+      const a = a0 + (t / (n * 6)) * Math.PI * 2;
+      const wob = Math.sin((a - a0) * n) * size * 0.32;
+      vine.push([cx + Math.cos(a) * (R + wob), cy + Math.sin(a) * (R + wob)]);
+    }
+    out.push(el('path', { d: polyPath(vine, true) }));
+    for (let i = 0; i < n; i++) {
+      const a = a0 + (i / n) * Math.PI * 2;
+      const x = cx + Math.cos(a) * R, y = cy + Math.sin(a) * R;
+      const deg = a * 180 / Math.PI + face + rng.range(-8, 8);
+      for (const node of scrollShape(x, y, size, deg)) out.push(node);
+    }
+  }
+  return out;
+}
+
+// What sits behind the animal. Everything here is drawn before the animal
+// and in a lighter line, so the animal comes forward both in stacking
+// order and in weight. The animal's own regions paint white first, which
+// is why the background needs no clipping of its own.
+function drawBackground(ctx, kind, animal, maxR) {
+  const { rng, detail } = ctx;
+  const halo = animal.halo;
+  if (kind === 'plain') return;
+  ctx.recipe.push({ part: 'background', family: kind });
+
+  if (kind === 'rings' || kind === 'both') {
+    // Paired with scrollwork the rings step aside after the first two.
+    drawHalo(ctx, halo, kind === 'both' ? Math.min(maxR, halo.r + 100) : maxR);
+  }
+  if (kind === 'scrollwork' || kind === 'both') {
+    // Far enough out to reach the page corners, unless a round frame is closer.
+    const corners = [[0, 0], [PAGE_W, 0], [0, PAGE_H], [PAGE_W, PAGE_H]];
+    const reach = Math.max.apply(null, corners.map(c => Math.hypot(c[0] - halo.cx, c[1] - halo.cy)));
+    const rOut = Math.min(maxR, reach);
+    const rIn = kind === 'both' ? halo.r + 110 : halo.r * 0.9;
+    if (rOut > rIn + 40) {
+      const size = Math.max(24, Math.min(52, 46 * detail.mult));
+      drawRegion(ctx, {
+        d: ringPath(halo.cx, halo.cy, rIn, rOut), evenodd: true, noOutline: true, light: true,
+        pattern: (box, r) => scrollField(halo.cx, halo.cy, rIn, rOut, size, r), spacing: size,
+      });
+    }
+  }
+}
+
 /* =====================================================================
    8. Putting a page together
    ===================================================================== */
@@ -1335,6 +1399,8 @@ function render(svg, settings) {
   const subject = settings.subject, detailName = settings.detail, seed = settings.seed;
   const pose = ANIMALS[subject][settings.pose] ? settings.pose : 'front';
   const frameChoice = ['square', 'round', 'random'].indexOf(settings.frame) >= 0 ? settings.frame : 'square';
+  const BACKGROUNDS = ['rings', 'scrollwork', 'both', 'plain'];
+  const background = BACKGROUNDS.indexOf(settings.background) >= 0 ? settings.background : 'rings';
   svg.innerHTML = '';
   renderCounter++;
   idCounter = 0;
@@ -1376,19 +1442,19 @@ function render(svg, settings) {
 
   const ctx = { svg, defs, layer, rng, detail, recipe, weights };
   const animal = ANIMALS[subject][pose](rng, detail);
-  drawHalo(ctx, animal.halo, frame.maxHalo / sc);
+  drawBackground(ctx, background, animal, frame.maxHalo / sc);
   for (const region of animal.regions) drawRegion(ctx, region);
   for (const d of animal.details) details.appendChild(d);
   Object.assign(STROKE, savedStroke);
   svg.appendChild(frame.lines);
 
   // A small label in the bottom band so the seed survives on paper.
-  const label = `${subject} ${pose} · ${frameKind} · seed ${seed} · detail ${detailName} · v${GENERATOR_VERSION}`;
+  const label = `${subject} ${pose} · ${frameKind} · ${background} · seed ${seed} · detail ${detailName} · v${GENERATOR_VERSION}`;
   const lw = label.length * 6.2 + 24, ly = PAGE_H - FRAME.inset - FRAME.band / 2;
   svg.appendChild(el('rect', { x: PAGE_W / 2 - lw / 2, y: ly - 11, width: lw, height: 22,
     fill: 'white', stroke: 'black', 'stroke-width': STROKE.pattern }));
   svg.appendChild(el('text', { x: PAGE_W / 2, y: ly + 4, 'text-anchor': 'middle',
     'font-family': 'Georgia, serif', 'font-size': 11, fill: 'black' }, [document.createTextNode(label)]));
 
-  return { label, recipe, weights, frame: frameKind };
+  return { label, recipe, weights, frame: frameKind, background };
 }
