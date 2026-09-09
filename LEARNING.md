@@ -128,8 +128,9 @@ Each band gets its own family, or is left calm.
 
 ### A pattern family is one function
 
-Seven functions, section 4: `spots`, `spirals`, `petals`, `scales`,
-`chevrons`, `strands`, `diamonds`. They all have the same shape: given a box, a random
+Eleven functions, section 4: `spots`, `spirals`, `petals`, `scales`,
+`chevrons`, `strands`, `diamonds`, `paisley`, `scrolls`, `feathers`,
+`knotwork`. They all have the same shape: given a box, a random
 generator and a spacing, return shapes. Because they are interchangeable,
 the generator can pick them by name, weight them, and the lab can show
 them one at a time. To add a family, write one more function of that
@@ -179,6 +180,15 @@ motif on a grid and then jitters it a little: spots vary their radius and
 side count, spirals their turn count and direction. Knobs: the
 `rng.range(...)` calls inside each family. Make the ranges wider for a
 looser, hand-drawn feel; narrower for a formal one.
+
+### Weaving, and why the break makes the knot
+
+`knotwork` is worth reading as code. Two sets of bands cross on a lattice,
+and at each crossing the band passing underneath has its two edge lines
+**stopped short**, exactly where the other band's edges run. That gap is
+the entire illusion of over and under. It also keeps every cell closed,
+because the stopped ends land precisely on the crossing band's edges
+rather than dangling in space.
 
 ### Contrast of scale: three sizes
 
@@ -265,7 +275,10 @@ edit the file, reload.
 10. **A bigger rosette.** In `giraffeFront()`, find the `rosette` region
     and change both `72`s to `90`. The forehead flower grows to touch the
     eyes; then try `50` and see how much calmer the face becomes.
-11. **An eighth family.** Copy `chevrons`, rename the copy `waves`, and
+11. **Weave the other way.** In `knotwork`, find `under(j, k)` and change
+    `(j + k)` to `(j + k + 1)`. Every crossing swaps which band is on top,
+    so the whole braid reverses. One character, a different weave.
+12. **A twelfth family.** Copy `chevrons`, rename the copy `waves`, and
    replace the zigzag points with a sine wave (`Math.sin`). Add `waves` to
    `FAMILIES`, `DENSITY`, `DIRECTIONAL` and `DEFAULT_WEIGHTS.families`,
    then to one region's `families` list. Bump `GENERATOR_VERSION`. Open

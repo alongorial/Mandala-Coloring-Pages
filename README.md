@@ -45,7 +45,8 @@ in and sees the other's favorites, is the planned next phase.
    **Frame** (square, round, or let the seed decide) and a **Detail**
    level. Low gives
    big calm areas and fewer, larger motifs; High packs in more bands, more
-   halo rings and finer patterns.
+   halo rings and finer patterns; Dense fills nearly everything, in the
+   manner of the drawings these pages are modelled on.
 3. Press **Regenerate** until you see a page you like. Every press draws a
    new variation.
 4. Press **Print**. On iPhone or iPad, the print button opens the share
@@ -127,8 +128,9 @@ it (controls, printing). A few ideas make the whole thing hang together:
   inside the region's clip, so they inherit its closed edge for free.
 - **A pattern family is one function.** Given a box, a random number
   generator and a spacing, it returns SVG elements. Spots, spirals, scales,
-  chevrons, petals, mane strands, and a lace of diamonds. Front faces also
-  carry a layered rosette on the forehead, the centre of the mandala. Every family is built from closed shapes
+  chevrons, petals, mane strands, a lace of diamonds, paisley teardrops,
+  acanthus scrolls, feathers and woven knotwork. Front faces also carry a
+  layered rosette on the forehead, the centre of the mandala. Every family is built from closed shapes
   or lines that run edge to edge, so it can never leave an unclosed pocket.
 - **The frame and halo use the same machinery.** The square border is
   four patterned rectangles plus corner medallions; the round frame is one
