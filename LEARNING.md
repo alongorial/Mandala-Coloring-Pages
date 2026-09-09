@@ -199,6 +199,12 @@ corner medallions and the quarter fans (`drawFrame`, `cornerFan`) give
 the eye an edge to come back from. Knobs: `FRAME.inset` (distance from
 the paper edge) and `FRAME.band` (width of the patterned band).
 
+A round frame changes the feeling more than any pattern does: the page
+becomes a medallion, and the corners turn into quiet space with a small
+fan in each. The medallion radius is the `R = 370` in `drawFrame`; the
+animal is scaled down by `scale` to fit inside it, and the strokes are
+thickened by the same amount so the printed lines stay the same width.
+
 ### Why calm areas make dense areas read
 
 This one is worth saying on its own. If you ever feel a page is "too
@@ -237,7 +243,11 @@ edit the file, reload.
    of the `eye` path to `296` (and the iris circle's `cx: 332` to `322`).
    Reload with Pose set to Front face. Both eyes move outward, because the
    right eye is the mirror of the left.
-8. **A seventh family.** Copy `chevrons`, rename the copy `waves`, and
+8. **A smaller medallion.** In `drawFrame`, change `R = 370` to `R = 320`
+   and set Frame to Round. The corners grow and the fans look bigger by
+   comparison. Try `R = 400` and watch the medallion nearly touch the
+   page border.
+9. **A seventh family.** Copy `chevrons`, rename the copy `waves`, and
    replace the zigzag points with a sine wave (`Math.sin`). Add `waves` to
    `FAMILIES`, `DENSITY`, `DIRECTIONAL` and `DEFAULT_WEIGHTS.families`,
    then to one region's `families` list. Bump `GENERATOR_VERSION`. Open
