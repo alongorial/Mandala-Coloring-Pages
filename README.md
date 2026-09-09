@@ -32,6 +32,19 @@ Every page prints a small label in its bottom border: the animal, the
 same animal and detail, reproduces the exact same page. The seed is also
 kept in the page address, so bookmarking the page works too.
 
+### Favorites
+
+Under the page there is a rating bar: 👍 **Like** or 👎 **Dislike**, then
+one-tap reasons such as "too busy" or "love the frame". Ratings are saved
+in the browser on that device. The **Favorites** button shows the liked
+pages with small previews; **Open** brings one back to print.
+
+Ratings never leave the device on their own. **Export as text** shows them
+as text you can copy to another device (or download as a file), and
+**Import pasted text** merges them in. To keep a set of favorites for
+good, paste an export into `favorites.json` in this repo: the published
+page loads that file and merges it with whatever is on the device.
+
 A seed reproduces a page for the generator **version** that made it. The
 version is the small "v3" at the end of the label. When the drawing code
 changes, the version number goes up, and old seeds still give a valid page,
@@ -82,6 +95,8 @@ it (controls, printing). A few ideas make the whole thing hang together:
   the loading / "browser too old" message.
 - `generator.js`: everything that draws. Written in browser JavaScript no
   newer than about 2017 so older tablets can run it.
+- `favorites.json`: curated ratings, pasted in from an export. Starts
+  empty.
 - `.github/workflows/pages.yml`: publishes the repo to GitHub Pages
   whenever `main` changes.
 - `README.md`: this file.

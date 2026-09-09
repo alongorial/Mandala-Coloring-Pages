@@ -21,7 +21,7 @@
 // Bump this whenever anything that affects the drawing changes. A seed
 // only reproduces a page for the version that made it, so the version is
 // printed on the page label and saved with every favorite.
-const GENERATOR_VERSION = 3;
+const GENERATOR_VERSION = 4;
 
 const PAGE_W = 850, PAGE_H = 1100;
 const STROKE = { outline: 4.5, divider: 3, pattern: 1.7 };
@@ -313,8 +313,10 @@ const DENSITY = { spots: 1, spirals: 0.85, petals: 0.9, scales: 0.62, chevrons: 
    angles to its "axis", and each band gets its own pattern (or is
    left calm). A band is a clip nested inside the region's clip.
    ===================================================================== */
-let idCounter = 0;
-const nextId = () => 'c' + (++idCounter);
+// Clip ids must be unique across the whole document, and the favorites
+// view draws several pages at once, so each render gets its own prefix.
+let idCounter = 0, renderCounter = 0;
+const nextId = () => 'r' + renderCounter + 'c' + (++idCounter);
 
 // A wavy polyline through point q, at right angles to direction (dx, dy),
 // long enough to cross any region on the page.
@@ -332,7 +334,8 @@ function wavyDivider(q, dx, dy, rng, amplitude) {
 }
 
 // Decide how a region gets filled: one pattern, or several bands.
-function planBands(region, rng, detail) {
+function planBands(ctx, region) {
+  const rng = ctx.rng, detail = ctx.detail;
   const [p0, p1] = region.axis;
   const axisLen = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
   let count = 1;
@@ -372,6 +375,7 @@ function planBands(region, rng, detail) {
     const density = family ? DENSITY[family] : 1;
     const spacing = Math.max(MIN_SPACING, region.spacing * density * detail.mult * rng.range(0.85, 1.15));
     bands.push({ fn, angle, spacing });
+    ctx.recipe.push({ part: region.name || 'region', band: i, family: family || 'calm' });
   }
   return { dividers, bands };
 }
@@ -406,7 +410,7 @@ function drawRegion(ctx, region) {
     // A fixed pattern (used by the halo rings and the frame).
     group.appendChild(patternGroup(region.pattern(box, rng, region.spacing, region.opts || {})));
   } else if (region.families) {
-    const { dividers, bands } = planBands(region, rng, detail);
+    const { dividers, bands } = planBands(ctx, region);
     // Straight, far-away edges close the first and last band.
     const [p0, p1] = region.axis;
     const far = (t) => wavyDivider([p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t],
@@ -513,14 +517,14 @@ function giraffe() {
   return {
     halo: { cx: 400, cy: 440, r: 250 },
     regions: [
-      { d: mane,     families: ['strands'], spacing: 30, axis: [[560, 380], [720, 1100]] },
-      { d: neck,     families: ['spots', 'scales', 'petals', 'chevrons', 'spirals'], spacing: 66,
+      { name: 'mane', d: mane, families: ['strands'], spacing: 30, axis: [[560, 380], [720, 1100]] },
+      { name: 'neck', d: neck, families: ['spots', 'scales', 'petals', 'chevrons', 'spirals'], spacing: 66,
         axis: [[510, 470], [560, 1100]], bands: [2, 3], calm: true },
       { d: ear },
-      { d: innerEar, families: ['spirals', 'scales', 'chevrons'], spacing: 32, axis: [[550, 335], [650, 250]] },
-      { d: ossicone(404, 428), families: ['spirals', 'scales', 'petals'], spacing: 28, axis: [[426, 285], [428, 170]] },
-      { d: ossicone(458, 482), families: ['spirals', 'scales', 'petals'], spacing: 28, axis: [[480, 285], [482, 170]] },
-      { d: head,     families: ['spots', 'spirals', 'petals', 'scales', 'chevrons'], spacing: 50,
+      { name: 'ear', d: innerEar, families: ['spirals', 'scales', 'chevrons'], spacing: 32, axis: [[550, 335], [650, 250]] },
+      { name: 'ossicone', d: ossicone(404, 428), families: ['spirals', 'scales', 'petals'], spacing: 28, axis: [[426, 285], [428, 170]] },
+      { name: 'ossicone', d: ossicone(458, 482), families: ['spirals', 'scales', 'petals'], spacing: 28, axis: [[480, 285], [482, 170]] },
+      { name: 'head', d: head, families: ['spots', 'spirals', 'petals', 'scales', 'chevrons'], spacing: 50,
         axis: [[170, 480], [545, 380]], bands: [2, 3] },
       { d: eye },
       { d: nostril, thin: true },
@@ -606,15 +610,15 @@ function horse() {
   return {
     halo: { cx: 380, cy: 400, r: 250 },
     regions: [
-      { d: mane,     families: ['strands'], spacing: 30, axis: [[540, 250], [700, 1100]] },
-      { d: neck,     families: ['scales', 'petals', 'chevrons', 'spirals', 'spots'], spacing: 62,
+      { name: 'mane', d: mane, families: ['strands'], spacing: 30, axis: [[540, 250], [700, 1100]] },
+      { name: 'neck', d: neck, families: ['scales', 'petals', 'chevrons', 'spirals', 'spots'], spacing: 62,
         axis: [[480, 480], [560, 1100]], bands: [2, 3], calm: true },
       { d: earBack },
       { d: earFront },
-      { d: innerEarFront, families: ['scales', 'chevrons'], spacing: 26, axis: [[454, 240], [456, 140]] },
-      { d: head,     families: ['petals', 'spirals', 'scales', 'chevrons', 'spots'], spacing: 48,
+      { name: 'ear', d: innerEarFront, families: ['scales', 'chevrons'], spacing: 26, axis: [[454, 240], [456, 140]] },
+      { name: 'head', d: head, families: ['petals', 'spirals', 'scales', 'chevrons', 'spots'], spacing: 48,
         axis: [[172, 480], [540, 340]], bands: [2, 3] },
-      { d: forelock, families: ['strands'], spacing: 30, axis: [[470, 232], [392, 310]] },
+      { name: 'forelock', d: forelock, families: ['strands'], spacing: 30, axis: [[470, 232], [392, 310]] },
       { d: eye },
       { d: nostril, thin: true },
     ],
@@ -645,6 +649,7 @@ function drawFrame(ctx) {
 
   // One family for all four sides so the frame feels like one object.
   const family = rng.pick([scales, chevrons, spirals]);
+  ctx.recipe.push({ part: 'frame', family: family.name });
   const spacing = W * (family === scales ? 0.9 : 0.8);
   const sides = [
     { d: rect(i, o, inner.w, W),           angle: 0 },   // top
@@ -689,6 +694,7 @@ function drawHalo(ctx, halo) {
     const rIn = halo.r + k * (width + gap), rOut = rIn + width;
     const kind = rng.pick(kinds.filter(x => x !== last));
     last = kind;
+    ctx.recipe.push({ part: 'halo', band: k, family: kind });
     drawRegion(ctx, { d: ringPath(halo.cx, halo.cy, rIn, rOut), evenodd: true,
       pattern: ringMotif, spacing: kind === 'rays' ? 20 : 30,
       opts: { cx: halo.cx, cy: halo.cy, rIn, rOut, kind }, thin: true });
@@ -701,9 +707,14 @@ function drawHalo(ctx, halo) {
 function render(svg, settings) {
   const subject = settings.subject, detailName = settings.detail, seed = settings.seed;
   svg.innerHTML = '';
+  renderCounter++;
   idCounter = 0;
   const rng = makeRng(seed);
   const detail = DETAIL[detailName];
+  // The recipe is the list of choices this page made: which family went
+  // in each band, ring and frame. Favorites save it so we can later see
+  // which choices keep getting liked.
+  const recipe = [];
 
   const defs = el('defs');
   svg.appendChild(defs);
@@ -711,7 +722,7 @@ function render(svg, settings) {
 
   const frameLayer = el('g');
   svg.appendChild(frameLayer);
-  const inner = drawFrame({ svg, defs, layer: frameLayer, rng, detail });
+  const inner = drawFrame({ svg, defs, layer: frameLayer, rng, detail, recipe });
 
   // Everything inside the inner border lives in one clipped group, so
   // the neck and the halo run cleanly off the edge and the border
@@ -726,7 +737,7 @@ function render(svg, settings) {
   art.append(layer, details);
   svg.appendChild(art);
 
-  const ctx = { svg, defs, layer, rng, detail };
+  const ctx = { svg, defs, layer, rng, detail, recipe };
   const animal = ANIMALS[subject]();
   cornerFan(ctx, inner.x, inner.y, 1, 1);
   cornerFan(ctx, inner.x + inner.w, inner.y, -1, 1);
@@ -743,4 +754,6 @@ function render(svg, settings) {
     fill: 'white', stroke: 'black', 'stroke-width': STROKE.pattern }));
   svg.appendChild(el('text', { x: PAGE_W / 2, y: ly + 4, 'text-anchor': 'middle',
     'font-family': 'Georgia, serif', 'font-size': 11, fill: 'black' }, [document.createTextNode(label)]));
+
+  return { label, recipe };
 }

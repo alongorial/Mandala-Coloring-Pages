@@ -11,35 +11,40 @@
     font-family: -apple-system, system-ui, sans-serif;
     background: #e9e6df;
     color: #222;
+    padding-bottom: 120px;   /* room for the rating bar at the bottom */
   }
-  .controls {
-    position: sticky;
-    top: 0;
+  .bar {
     display: flex;
     flex-wrap: wrap;
     gap: 8px 14px;
     align-items: center;
     padding: 10px 12px;
     background: #fffdf7;
-    border-bottom: 1px solid #cfc9b8;
   }
-  .controls label { font-size: 14px; display: flex; align-items: center; gap: 6px; }
-  .controls input, .controls select {
-    padding: 8px;
-    min-height: 44px;  /* comfortable to tap on a tablet */
+  .bar.top { position: sticky; top: 0; border-bottom: 1px solid #cfc9b8; z-index: 2; }
+  .bar.bottom { position: fixed; bottom: 0; left: 0; right: 0; border-top: 1px solid #cfc9b8; z-index: 2; }
+  .bar label { font-size: 14px; display: flex; align-items: center; gap: 6px; }
+  input, select, button, textarea {
     font-size: 16px;   /* 16px stops iPhone from zooming in on focus */
+    font-family: inherit;
     box-sizing: border-box;
   }
-  .controls input { width: 100px; }
-  .controls button {
+  input, select { padding: 8px; min-height: 44px; }
+  input[type=number] { width: 100px; }
+  button {
     padding: 8px 16px;
-    min-height: 44px;
-    font-size: 16px;
+    min-height: 44px;   /* comfortable to tap on a tablet */
     border-radius: 6px;
     border: 1px solid #8a836f;
     background: #f5f1e6;
+    cursor: pointer;
   }
-  .controls button.primary { background: #2f6f4e; color: white; border-color: #2f6f4e; }
+  button.primary { background: #2f6f4e; color: white; border-color: #2f6f4e; }
+  button[aria-pressed="true"] { background: #2f6f4e; color: white; border-color: #2f6f4e; }
+  button.dislike[aria-pressed="true"] { background: #8a3b2f; border-color: #8a3b2f; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+  .chips button { min-height: 36px; padding: 4px 12px; font-size: 14px; border-radius: 18px; }
+  .hint { font-size: 13px; color: #6b665a; }
   .status { max-width: 850px; margin: 16px auto; padding: 0 12px; font-size: 16px; }
   .status.error { color: #8a1f1f; }
   .page {
@@ -52,21 +57,34 @@
     box-shadow: 0 2px 12px rgba(0,0,0,.25);
   }
 
+  /* ---------- Favorites panel ---------- */
+  .panel { max-width: 850px; margin: 16px auto; padding: 12px; background: #fffdf7; border: 1px solid #cfc9b8; border-radius: 8px; }
+  .panel h2 { margin: 0 0 8px; font-size: 18px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .card { background: white; border: 1px solid #ddd; border-radius: 6px; padding: 8px; font-size: 13px; }
+  .card svg { width: 100%; height: auto; display: block; background: white; border: 1px solid #eee; }
+  .card .thumb-placeholder { aspect-ratio: 850 / 1100; background: #f3f0e8; }
+  .card .meta { margin: 6px 0; line-height: 1.4; }
+  .card .actions { display: flex; gap: 6px; }
+  .card .actions button { flex: 1; min-height: 36px; padding: 4px; font-size: 14px; }
+  .panel textarea { width: 100%; height: 120px; margin-top: 8px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+
   /* ---------- Print layout ----------
      The SVG is drawn in "page units" where 100 units = 1 inch, so the
-     850 x 1100 drawing is exactly US Letter. On paper we hide the
-     controls and size the SVG to the sheet. */
+     850 x 1100 drawing is exactly US Letter. On paper we hide everything
+     except the page and size it to the sheet. */
   @page { size: letter portrait; margin: 0; }
   @media print {
-    body { background: white; }
-    .controls { display: none; }
+    body { background: white; padding: 0; }
+    .bar, .status, .panel { display: none; }
     .page { width: 8.5in; height: 11in; margin: 0; box-shadow: none; }
   }
 </style>
 </head>
 <body>
 
-<div class="controls">
+<div class="bar top">
   <button class="primary" id="regen">Regenerate</button>
   <label>Animal
     <select id="subject">
@@ -83,6 +101,7 @@
   </label>
   <label>Seed <input id="seed" type="number" inputmode="numeric"></label>
   <button id="print">Print</button>
+  <button id="toggle-favorites">Favorites</button>
 </div>
 
 <!-- Shown while the script loads. If the script fails (for example on a
@@ -92,6 +111,31 @@
 
 <!-- The drawing goes here. viewBox = the coordinate system we draw in. -->
 <svg class="page" id="page" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850 1100"></svg>
+
+<!-- Favorites: liked pages, dislikes, export and import. Hidden until opened. -->
+<div class="panel" id="favorites" hidden>
+  <h2>Favorites</h2>
+  <p class="hint" id="favorites-summary"></p>
+  <div class="row">
+    <label><input type="checkbox" id="show-dislikes"> show dislikes too</label>
+    <button id="show-more" hidden>Show more</button>
+  </div>
+  <div class="cards" id="cards"></div>
+  <div class="row">
+    <button id="export">Export as text</button>
+    <button id="import">Import pasted text</button>
+    <a id="download" hidden download="mandala-favorites.json">Download file</a>
+  </div>
+  <textarea id="transfer" placeholder="Export puts your ratings here as text. To import, paste ratings here and press Import." hidden></textarea>
+</div>
+
+<!-- The rating bar. Thumbs first; the reason chips appear once a page has a vote. -->
+<div class="bar bottom" id="rating">
+  <span id="rating-label">Rate this page</span>
+  <button id="like" aria-pressed="false">👍 Like</button>
+  <button id="dislike" class="dislike" aria-pressed="false">👎 Dislike</button>
+  <div class="chips" id="chips" hidden></div>
+</div>
 
 <!-- This tiny script is deliberately old-fashioned JavaScript so that it
      runs even on browsers that choke on the generator. -->
@@ -113,12 +157,11 @@ window.onerror = function (message) {
    The settings live in the page address (#subject=horse&detail=high&seed=123)
    so a page can be bookmarked or shared and comes back identical.
    ===================================================================== */
-const inputs = {
-  subject: document.getElementById('subject'),
-  detail:  document.getElementById('detail'),
-  seed:    document.getElementById('seed'),
-};
+const $ = (id) => document.getElementById(id);
+const inputs = { subject: $('subject'), detail: $('detail'), seed: $('seed') };
 const randomSeed = () => Math.floor(Math.random() * 1000000);
+
+let current = null;   // the settings of the page on screen, plus its recipe
 
 function readSettingsFromUrl() {
   const p = new URLSearchParams(location.hash.slice(1));
@@ -129,24 +172,219 @@ function readSettingsFromUrl() {
   };
 }
 function currentSettings() {
-  return {
-    subject: inputs.subject.value,
-    detail:  inputs.detail.value,
-    seed:    Number(inputs.seed.value) || 0,
-  };
+  return { subject: inputs.subject.value, detail: inputs.detail.value, seed: Number(inputs.seed.value) || 0 };
 }
 function apply(settings) {
   inputs.subject.value = settings.subject;
   inputs.detail.value = settings.detail;
   inputs.seed.value = settings.seed;
   history.replaceState(null, '', `#subject=${settings.subject}&detail=${settings.detail}&seed=${settings.seed}`);
-  render(document.getElementById('page'), settings);
-  document.getElementById('status').hidden = true;
+  const result = render($('page'), settings);
+  $('status').hidden = true;
+  current = Object.assign({}, settings, { version: GENERATOR_VERSION, recipe: result.recipe });
+  showRatingFor(current);
 }
 
-document.getElementById('regen').addEventListener('click', () => apply(Object.assign(currentSettings(), { seed: randomSeed() })));
-document.getElementById('print').addEventListener('click', () => window.print());
-for (const input of Object.values(inputs)) input.addEventListener('change', () => apply(currentSettings()));
+$('regen').addEventListener('click', () => apply(Object.assign(currentSettings(), { seed: randomSeed() })));
+$('print').addEventListener('click', () => window.print());
+for (const key in inputs) inputs[key].addEventListener('change', () => apply(currentSettings()));
+
+/* =====================================================================
+   Ratings
+   A rating is one small record per page, saved in this browser's local
+   storage. The page is identified by animal + detail + seed + version,
+   which is exactly what reproduces it. The recipe (which family went
+   where) is saved too, so later we can learn which choices keep winning.
+   ===================================================================== */
+const STORAGE_KEY = 'mandala-ratings';
+
+// One-tap reasons. Add your own here; they are just words.
+const REASONS = [
+  'too busy', 'too plain', 'love the frame', 'love the head', 'love the neck',
+  'spots too small', 'lines too thin', 'wrong animal shape',
+];
+
+const pageId = (s) => `${s.subject}-${s.detail}-${s.seed}-v${s.version}`;
+
+function loadRatings() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch (e) { return []; }
+}
+function saveRatings(list) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch (e) { /* private mode, etc. */ }
+}
+function findRating(id) {
+  return loadRatings().filter(r => r.id === id)[0] || null;
+}
+// Insert or replace one rating, keeping everything else.
+function upsertRating(entry) {
+  const list = loadRatings().filter(r => r.id !== entry.id);
+  list.push(entry);
+  saveRatings(list);
+}
+function removeRating(id) {
+  saveRatings(loadRatings().filter(r => r.id !== id));
+}
+
+function vote(kind) {
+  const existing = findRating(pageId(current));
+  if (existing && existing.vote === kind) {        // pressing again clears the vote
+    removeRating(existing.id);
+  } else {
+    upsertRating({
+      id: pageId(current), subject: current.subject, detail: current.detail, seed: current.seed,
+      version: current.version, vote: kind, tags: existing ? existing.tags : [],
+      recipe: current.recipe, when: new Date().toISOString(),
+    });
+  }
+  showRatingFor(current);
+}
+function toggleTag(tag) {
+  const existing = findRating(pageId(current));
+  if (!existing) return;
+  existing.tags = existing.tags.indexOf(tag) >= 0 ? existing.tags.filter(t => t !== tag) : existing.tags.concat([tag]);
+  upsertRating(existing);
+  showRatingFor(current);
+}
+
+// Reflect the saved rating of the page on screen in the bottom bar.
+function showRatingFor(settings) {
+  const r = findRating(pageId(settings));
+  $('like').setAttribute('aria-pressed', String(!!r && r.vote === 'like'));
+  $('dislike').setAttribute('aria-pressed', String(!!r && r.vote === 'dislike'));
+  $('rating-label').textContent = r ? (r.vote === 'like' ? 'Liked. Why?' : 'Disliked. Why?') : 'Rate this page';
+  const chips = $('chips');
+  chips.hidden = !r;
+  chips.innerHTML = '';
+  if (!r) return;
+  for (const tag of REASONS) {
+    const b = document.createElement('button');
+    b.textContent = tag;
+    b.setAttribute('aria-pressed', String(r.tags.indexOf(tag) >= 0));
+    b.addEventListener('click', () => toggleTag(tag));
+    chips.appendChild(b);
+  }
+}
+$('like').addEventListener('click', () => vote('like'));
+$('dislike').addEventListener('click', () => vote('dislike'));
+
+/* =====================================================================
+   Favorites view
+   Cards for rated pages, newest first. Thumbnails are full renders shown
+   small, drawn a few at a time so an old tablet is not asked to draw
+   twenty pages at once.
+   ===================================================================== */
+const BATCH = 6;
+let cardsShown = 0;
+
+function visibleRatings() {
+  const list = loadRatings().filter(r => $('show-dislikes').checked || r.vote === 'like');
+  return list.sort((a, b) => (b.when || '').localeCompare(a.when || ''));
+}
+
+function renderCards(reset) {
+  const list = visibleRatings();
+  const cards = $('cards');
+  if (reset) { cards.innerHTML = ''; cardsShown = 0; }
+  const all = loadRatings();
+  $('favorites-summary').textContent =
+    `${all.filter(r => r.vote === 'like').length} liked, ${all.filter(r => r.vote === 'dislike').length} disliked, on this device.`;
+  const next = list.slice(cardsShown, cardsShown + BATCH);
+  for (const r of next) cards.appendChild(makeCard(r));
+  cardsShown += next.length;
+  $('show-more').hidden = cardsShown >= list.length;
+  if (!list.length) cards.innerHTML = '<p class="hint">Nothing here yet. Press 👍 on a page you like.</p>';
+}
+
+function makeCard(r) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 850 1100');
+  card.appendChild(svg);
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.innerHTML = `<b>${r.subject}</b> · seed ${r.seed} · ${r.detail} · v${r.version}` +
+    (r.vote === 'dislike' ? ' · 👎' : '') +
+    (r.tags.length ? `<br><span class="hint">${r.tags.join(', ')}</span>` : '');
+  card.appendChild(meta);
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  const open = document.createElement('button');
+  open.textContent = 'Open';
+  open.addEventListener('click', () => {
+    apply({ subject: r.subject, detail: r.detail, seed: r.seed });
+    window.scrollTo(0, 0);
+    if (r.version !== GENERATOR_VERSION) {
+      $('status').hidden = false;
+      $('status').className = 'status';
+      $('status').textContent = `This favorite was made with version ${r.version}; the generator is now v${GENERATOR_VERSION}, so the page may differ.`;
+    }
+  });
+  const remove = document.createElement('button');
+  remove.textContent = 'Remove';
+  remove.addEventListener('click', () => { removeRating(r.id); renderCards(true); showRatingFor(current); });
+  actions.append(open, remove);
+  card.appendChild(actions);
+  // Draw the thumbnail after the card is on screen (getBBox needs that).
+  setTimeout(() => render(svg, { subject: r.subject, detail: r.detail, seed: r.seed }), 0);
+  return card;
+}
+
+$('toggle-favorites').addEventListener('click', () => {
+  const panel = $('favorites');
+  panel.hidden = !panel.hidden;
+  if (!panel.hidden) { renderCards(true); panel.scrollIntoView({ behavior: 'smooth' }); }
+});
+$('show-more').addEventListener('click', () => renderCards(false));
+$('show-dislikes').addEventListener('change', () => renderCards(true));
+
+/* =====================================================================
+   Export and import
+   Local storage belongs to one browser on one device. Export turns the
+   ratings into text you can copy anywhere: another device, or the
+   favorites.json file in the repo. Import merges pasted text back in.
+   ===================================================================== */
+$('export').addEventListener('click', () => {
+  const text = JSON.stringify(loadRatings(), null, 2);
+  const box = $('transfer');
+  box.hidden = false;
+  box.value = text;
+  box.focus();
+  box.select();
+  const link = $('download');
+  link.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(text);
+  link.hidden = false;
+});
+$('import').addEventListener('click', () => {
+  const box = $('transfer');
+  if (box.hidden) { box.hidden = false; box.value = ''; box.focus(); return; }
+  const added = mergeRatings(box.value);
+  box.value = '';
+  box.hidden = true;
+  renderCards(true);
+  showRatingFor(current);
+  $('favorites-summary').textContent = `Imported ${added} rating${added === 1 ? '' : 's'}. ` + $('favorites-summary').textContent;
+});
+// Merge a JSON list of ratings into local storage; existing ids are kept.
+function mergeRatings(text) {
+  let incoming;
+  try { incoming = JSON.parse(text); } catch (e) { return 0; }
+  if (!Array.isArray(incoming)) return 0;
+  const list = loadRatings();
+  const have = {};
+  for (const r of list) have[r.id] = true;
+  let added = 0;
+  for (const r of incoming) {
+    if (r && r.id && r.vote && !have[r.id]) { list.push(r); have[r.id] = true; added++; }
+  }
+  saveRatings(list);
+  return added;
+}
+// favorites.json in the repo: the curated list. Only reachable when the
+// page is served from a web address (GitHub Pages), not from a file.
+if (location.protocol.indexOf('http') === 0 && window.fetch) {
+  fetch('favorites.json').then(r => r.ok ? r.text() : '').then(text => { if (text) mergeRatings(text); }).catch(() => {});
+}
 
 apply(readSettingsFromUrl());
 </script>
