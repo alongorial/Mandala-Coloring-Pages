@@ -21,10 +21,10 @@
 // Bump this whenever anything that affects the drawing changes. A seed
 // only reproduces a page for the version that made it, so the version is
 // printed on the page label and saved with every favorite.
-const GENERATOR_VERSION = 8;
+const GENERATOR_VERSION = 9;
 
 const PAGE_W = 850, PAGE_H = 1100;
-const STROKE = { outline: 4.5, divider: 3, pattern: 1.7 };
+const STROKE = { outline: 4.5, divider: 3, pattern: 1.7, light: 1.3 };   // light: background ornament, still 0.33 mm
 const FRAME = { inset: 50, band: 36 };   // outer border inset, width of the patterned border band
 const MIN_SPACING = 22;                  // patterns never get finer than this (0.22 inch)
 
@@ -250,6 +250,49 @@ function strands(box, rng, spacing, opts = {}) {
   });
 }
 
+// Diamonds: a lattice of rhombuses that nearly touch, so the gaps are
+// small diamonds too. Larger cells get a bead in the middle, which is
+// the lace look of the reference giraffe's neck.
+function diamonds(box, rng, spacing, opts = {}) {
+  return rotated(box, opts.angle || 0, (big) => {
+    const out = [];
+    const hw = spacing * 0.46, hh = spacing * 0.6;
+    let row = 0;
+    for (let y = big.y - hh; y < big.y + big.h + hh; y += hh, row++) {
+      const shift = (row % 2) * spacing / 2;
+      for (let x = big.x - spacing + shift; x < big.x + big.w + spacing; x += spacing) {
+        out.push(el('path', { d: polyPath([[x, y - hh], [x + hw, y], [x, y + hh], [x - hw, y]], true), 'stroke-linejoin': 'miter' }));
+        if (spacing >= 30) out.push(el('circle', { cx: f(x), cy: f(y), r: f(spacing * 0.1) }));
+      }
+    }
+    return out;
+  });
+}
+
+// A layered rosette: a centre disc and rings of petals growing outward,
+// each ring offset by half a petal. The reference giraffe wears one on
+// its forehead.
+function rosette(box, rng, spacing, opts) {
+  const { cx, cy, r } = opts;
+  const out = [];
+  const pt = (a, rr) => [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr];
+  const petal = (a, r0, r1, halfWidth) => {
+    const [x0, y0] = pt(a, r0), [x1, y1] = pt(a, r1), [mx, my] = pt(a, (r0 + r1) / 2);
+    const nx = -Math.sin(a), ny = Math.cos(a);
+    return el('path', { d: `M${f(x0)} ${f(y0)} Q${f(mx + nx * halfWidth)} ${f(my + ny * halfWidth)} ${f(x1)} ${f(y1)}` +
+      ` Q${f(mx - nx * halfWidth)} ${f(my - ny * halfWidth)} ${f(x0)} ${f(y0)} Z` });
+  };
+  out.push(el('circle', { cx: f(cx), cy: f(cy), r: f(r * 0.12) }));
+  const rings = [[0.14, 0.42, 8], [0.44, 0.72, 12], [0.74, 0.98, 16]];
+  rings.forEach(([a, b, n], i) => {
+    const off = (i % 2) * Math.PI / n;
+    const halfWidth = (Math.PI * r * (a + b) / 2 / n) * 0.62;
+    for (let k = 0; k < n; k++) out.push(petal(off + (k / n) * Math.PI * 2, r * a, r * b, halfWidth));
+    out.push(el('circle', { cx: f(cx), cy: f(cy), r: f(r * b) }));
+  });
+  return out;
+}
+
 // Ring patterns: for the halo behind the animal and the frame corners.
 // They know the ring's centre and radii, and draw the two circles plus
 // a motif repeated around the ring.
@@ -263,16 +306,19 @@ function ringMotif(box, rng, spacing, opts) {
   const a0 = rng.range(0, Math.PI * 2);
   const pt = (a, r) => [cx + Math.cos(a) * r, cy + Math.sin(a) * r];
 
-  if (kind === 'petals') {
+  const almond = (a, r0, r1, halfWidth) => {
+    const [x0, y0] = pt(a, r0), [x1, y1] = pt(a, r1), [mx, my] = pt(a, (r0 + r1) / 2);
+    const nx = -Math.sin(a), ny = Math.cos(a);
+    return el('path', { d:
+      `M${f(x0)} ${f(y0)} Q${f(mx + nx * halfWidth)} ${f(my + ny * halfWidth)} ${f(x1)} ${f(y1)}` +
+      ` Q${f(mx - nx * halfWidth)} ${f(my - ny * halfWidth)} ${f(x0)} ${f(y0)} Z` });
+  };
+  if (kind === 'petals' || kind === 'leaves') {
     const halfWidth = (Math.PI * rMid / n) * 0.6;
     for (let i = 0; i < n; i++) {
       const a = a0 + (i / n) * Math.PI * 2;
-      const [x0, y0] = pt(a, rIn + w * 0.08), [x1, y1] = pt(a, rOut - w * 0.08);
-      const [mx, my] = pt(a, rMid);
-      const nx = -Math.sin(a), ny = Math.cos(a);
-      out.push(el('path', { d:
-        `M${f(x0)} ${f(y0)} Q${f(mx + nx * halfWidth)} ${f(my + ny * halfWidth)} ${f(x1)} ${f(y1)}` +
-        ` Q${f(mx - nx * halfWidth)} ${f(my - ny * halfWidth)} ${f(x0)} ${f(y0)} Z` }));
+      out.push(almond(a, rIn + w * 0.08, rOut - w * 0.08, halfWidth));
+      if (kind === 'leaves') out.push(almond(a, rIn + w * 0.24, rOut - w * 0.24, halfWidth * 0.45));
     }
   } else if (kind === 'beads') {
     for (let i = 0; i < n; i++) {
@@ -296,11 +342,11 @@ function ringMotif(box, rng, spacing, opts) {
 
 // The families a band inside the animal may choose from, and which of
 // them care about direction.
-const FAMILIES = { spots, spirals, petals, scales, chevrons, strands };
-const DIRECTIONAL = new Set([scales, chevrons, strands]);
+const FAMILIES = { spots, spirals, petals, scales, chevrons, strands, diamonds };
+const DIRECTIONAL = new Set([scales, chevrons, strands, diamonds]);
 // Line-based families need to be denser than blob-based ones to read
 // as a texture, so each family scales the region's spacing a little.
-const DENSITY = { spots: 1, spirals: 0.85, petals: 0.9, scales: 0.62, chevrons: 0.5, strands: 0.42 };
+const DENSITY = { spots: 1, spirals: 0.85, petals: 0.9, scales: 0.62, chevrons: 0.5, strands: 0.42, diamonds: 0.6 };
 
 // Taste weights. Every choice the generator makes between families is a
 // weighted draw from one of these tables: a weight of 2 makes a family
@@ -309,8 +355,8 @@ const DENSITY = { spots: 1, spirals: 0.85, petals: 0.9, scales: 0.62, chevrons: 
 // ratings, and you can edit them by hand; a page remembers the weights
 // it was made with so a favorite still reproduces exactly.
 const DEFAULT_WEIGHTS = {
-  families: { spots: 1, spirals: 1, petals: 1, scales: 1, chevrons: 1, strands: 1 },
-  halo:     { petals: 1, beads: 1, rays: 1, zigzag: 1 },
+  families: { spots: 1, spirals: 1, petals: 1, scales: 1, chevrons: 1, strands: 1, diamonds: 1 },
+  halo:     { petals: 1, beads: 1, rays: 1, zigzag: 1, leaves: 1 },
   frame:    { scales: 1, chevrons: 1, spirals: 1 },
 };
 let WEIGHTS = JSON.parse(JSON.stringify(DEFAULT_WEIGHTS));
@@ -431,8 +477,10 @@ function drawRegion(ctx, region) {
   const group = el('g', { 'clip-path': `url(#${clipId})` });
   group.appendChild(el('path', fillAttrs));
 
+  // Background ornament is drawn a little lighter than the animal, so
+  // the animal comes forward. Never below 0.33 mm.
   const patternGroup = (nodes) =>
-    el('g', { fill: 'none', stroke: 'black', 'stroke-width': STROKE.pattern }, nodes);
+    el('g', { fill: 'none', stroke: 'black', 'stroke-width': region.light ? STROKE.light : STROKE.pattern }, nodes);
 
   if (region.pattern) {
     // A fixed pattern (used by the halo rings and the frame).
@@ -790,17 +838,20 @@ function giraffeFront() {
   return {
     halo: { cx: CX, cy: 500, r: 245 },
     regions: [
-      { name: 'neck', d: neck, families: ['spots', 'scales', 'petals', 'chevrons', 'spirals'], spacing: 62,
-        axis: [[CX, 700], [CX, 1100]], bands: [1, 2], calm: true },
+      // The neck's axis runs across, so its bands are upright stripes of lace.
+      { name: 'neck', d: neck, families: ['diamonds', 'scales', 'petals', 'chevrons', 'spots'], spacing: 44,
+        axis: [[CX - 110, 900], [CX + 110, 900]], bands: [2, 3], calm: true },
       { name: 'tuft', d: tuft, families: ['strands'], spacing: 26, axis: [[CX, 250], [CX, 318]] },
       { name: 'ossicone', d: ossicone, families: ['spirals', 'scales', 'petals'], spacing: 28, axis: [[397, 318], [394, 176]] },
       { name: 'ossicone', d: mirrorPath(ossicone, CX), families: ['spirals', 'scales', 'petals'], spacing: 28, axis: [[453, 318], [456, 176]] },
       { name: 'ear', d: ear }, { name: 'ear', d: mirrorPath(ear, CX) },
-      { name: 'ear', d: innerEar, families: ['spirals', 'scales', 'chevrons'], spacing: 30, axis: [[322, 390], [210, 338]] },
-      { name: 'ear', d: mirrorPath(innerEar, CX), families: ['spirals', 'scales', 'chevrons'], spacing: 30, axis: [[528, 390], [640, 338]] },
+      { name: 'ear', d: innerEar, families: ['petals', 'spirals', 'scales'], spacing: 30, axis: [[322, 390], [210, 338]] },
+      { name: 'ear', d: mirrorPath(innerEar, CX), families: ['petals', 'spirals', 'scales'], spacing: 30, axis: [[528, 390], [640, 338]] },
       { name: 'head', d: head, families: ['spots', 'spirals', 'petals', 'scales', 'chevrons'], spacing: 48,
         axis: [[CX, 300], [CX, 764]], bands: [2, 3] },
       { name: 'muzzle', d: muzzle, families: ['spirals', 'petals', 'scales'], spacing: 34, axis: [[CX, 655], [CX, 764]], calm: true, bands: [1, 1] },
+      // The forehead rosette: the centre of the mandala, right between the eyes.
+      { name: 'rosette', d: circlePath(CX, 392, 72), pattern: rosette, spacing: 0, opts: { cx: CX, cy: 392, r: 72 }, thin: true },
       { name: 'eye', d: eye }, { name: 'eye', d: mirrorPath(eye, CX) },
       { name: 'nostril', d: nostril, thin: true }, { name: 'nostril', d: mirrorPath(nostril, CX), thin: true },
     ],
@@ -863,15 +914,16 @@ function horseFront() {
     halo: { cx: CX, cy: 500, r: 245 },
     regions: [
       { name: 'mane', d: mane, families: ['strands'], spacing: 30, axis: [[CX, 560], [CX, 1100]] },
-      { name: 'neck', d: neck, families: ['scales', 'petals', 'chevrons', 'spirals', 'spots'], spacing: 60,
-        axis: [[CX, 700], [CX, 1100]], bands: [1, 2], calm: true },
+      { name: 'neck', d: neck, families: ['diamonds', 'scales', 'petals', 'chevrons', 'spirals'], spacing: 42,
+        axis: [[CX - 100, 900], [CX + 100, 900]], bands: [2, 3], calm: true },
       { name: 'ear', d: ear }, { name: 'ear', d: mirrorPath(ear, CX) },
-      { name: 'ear', d: innerEar, families: ['scales', 'chevrons'], spacing: 26, axis: [[358, 312], [350, 206]] },
-      { name: 'ear', d: mirrorPath(innerEar, CX), families: ['scales', 'chevrons'], spacing: 26, axis: [[492, 312], [500, 206]] },
+      { name: 'ear', d: innerEar, families: ['petals', 'scales', 'chevrons'], spacing: 26, axis: [[358, 312], [350, 206]] },
+      { name: 'ear', d: mirrorPath(innerEar, CX), families: ['petals', 'scales', 'chevrons'], spacing: 26, axis: [[492, 312], [500, 206]] },
       { name: 'head', d: head, families: ['petals', 'spirals', 'scales', 'chevrons', 'spots'], spacing: 46,
         axis: [[CX, 290], [CX, 772]], bands: [2, 3] },
       { name: 'forelock', d: forelock, families: ['strands'], spacing: 26, axis: [[CX, 286], [CX, 392]] },
       { name: 'muzzle', d: muzzle, families: ['spirals', 'petals', 'scales'], spacing: 34, axis: [[CX, 662], [CX, 772]], calm: true, bands: [1, 1] },
+      { name: 'rosette', d: circlePath(CX, 430, 58), pattern: rosette, spacing: 0, opts: { cx: CX, cy: 430, r: 58 }, thin: true },
       { name: 'eye', d: eye }, { name: 'eye', d: mirrorPath(eye, CX) },
       { name: 'nostril', d: nostril, thin: true }, { name: 'nostril', d: mirrorPath(nostril, CX), thin: true },
     ],
@@ -1098,7 +1150,7 @@ function cornerFan(ctx, cx, cy, sx, sy, R) {
 function drawHalo(ctx, halo, maxR) {
   const { rng, detail } = ctx;
   const width = 38, gap = 24;
-  const kinds = ['petals', 'beads', 'rays', 'zigzag'];
+  const kinds = ['petals', 'beads', 'rays', 'zigzag', 'leaves'];
   let last = null;
   for (let k = 0; k < detail.rings; k++) {
     const rIn = halo.r + k * (width + gap), rOut = rIn + width;
@@ -1107,8 +1159,8 @@ function drawHalo(ctx, halo, maxR) {
     last = kind;
     ctx.recipe.push({ part: 'halo', band: k, family: kind });
     drawRegion(ctx, { d: ringPath(halo.cx, halo.cy, rIn, rOut), evenodd: true,
-      pattern: ringMotif, spacing: kind === 'rays' ? 20 : 30,
-      opts: { cx: halo.cx, cy: halo.cy, rIn, rOut, kind }, thin: true });
+      pattern: ringMotif, spacing: kind === 'rays' ? 20 : kind === 'leaves' ? 36 : 30,
+      opts: { cx: halo.cx, cy: halo.cy, rIn, rOut, kind }, thin: true, light: true });
   }
 }
 

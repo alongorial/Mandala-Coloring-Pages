@@ -128,8 +128,8 @@ Each band gets its own family, or is left calm.
 
 ### A pattern family is one function
 
-Six functions, section 4: `spots`, `spirals`, `petals`, `scales`,
-`chevrons`, `strands`. They all have the same shape: given a box, a random
+Seven functions, section 4: `spots`, `spirals`, `petals`, `scales`,
+`chevrons`, `strands`, `diamonds`. They all have the same shape: given a box, a random
 generator and a spacing, return shapes. Because they are interchangeable,
 the generator can pick them by name, weight them, and the lab can show
 them one at a time. To add a family, write one more function of that
@@ -152,6 +152,14 @@ the weights it was made with and uses them again when you press Open.
 
 These are the qualities that make a page satisfying to color, and where
 each one lives in the code. Use the lab to see them in isolation.
+
+### Foreground and background: line weight as depth
+
+Look at the reference giraffe: the head is drawn in firm lines and the
+scrollwork behind it in lighter ones, and that alone pushes the head
+forward. The generator does the same with `STROKE.light` for the halo
+rings (`light: true` on a region). It is still 0.33 mm, thick enough for
+an inkjet, just visibly lighter than the animal's 0.43 mm.
 
 ### A center, and rhythm around it
 
@@ -253,7 +261,10 @@ edit the file, reload.
    the `[150, 26]` stop to `[150, 40]`. Set Pose to Full body. The tail
    thickens along the left of the ring, because thickness is a function of
    angle and you moved one point on that function.
-10. **A seventh family.** Copy `chevrons`, rename the copy `waves`, and
+10. **A bigger rosette.** In `giraffeFront()`, find the `rosette` region
+    and change both `72`s to `90`. The forehead flower grows to touch the
+    eyes; then try `50` and see how much calmer the face becomes.
+11. **An eighth family.** Copy `chevrons`, rename the copy `waves`, and
    replace the zigzag points with a sine wave (`Math.sin`). Add `waves` to
    `FAMILIES`, `DENSITY`, `DIRECTIONAL` and `DEFAULT_WEIGHTS.families`,
    then to one region's `families` list. Bump `GENERATOR_VERSION`. Open

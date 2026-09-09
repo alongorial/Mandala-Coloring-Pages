@@ -128,7 +128,8 @@ it (controls, printing). A few ideas make the whole thing hang together:
   inside the region's clip, so they inherit its closed edge for free.
 - **A pattern family is one function.** Given a box, a random number
   generator and a spacing, it returns SVG elements. Spots, spirals, scales,
-  chevrons, petals, mane strands. Every family is built from closed shapes
+  chevrons, petals, mane strands, and a lace of diamonds. Front faces also
+  carry a layered rosette on the forehead, the centre of the mandala. Every family is built from closed shapes
   or lines that run edge to edge, so it can never leave an unclosed pocket.
 - **The frame and halo use the same machinery.** The square border is
   four patterned rectangles plus corner medallions; the round frame is one
