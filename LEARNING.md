@@ -166,8 +166,9 @@ an inkjet, just visibly lighter than the animal's 0.43 mm.
 A mandala has a center and everything answers to it. Here the head is the
 center and the **halo** rings behind it (`drawHalo`) supply the radial
 rhythm: motifs repeated around a circle at even angles. The full-body
-horse turns this inside out: the mandala is the centre and the animal
-wraps around it, which is the oldest mandala composition there is. The frame answers
+horse rears in front of the rings rather than behind them, and its mane
+and tail sweep around the circle, so the ring and the animal answer each
+other. The frame answers
 the halo with the same motifs in straight lines. Knob: `halo.r` in each
 animal sets how far out the rings start; `DETAIL[...].rings` how many.
 
@@ -257,10 +258,10 @@ edit the file, reload.
    and set Frame to Round. The corners grow and the fans look bigger by
    comparison. Try `R = 400` and watch the medallion nearly touch the
    page border.
-9. **A fatter tail.** In `horseBody()`, find the `thick` table and change
-   the `[150, 26]` stop to `[150, 40]`. Set Pose to Full body. The tail
-   thickens along the left of the ring, because thickness is a function of
-   angle and you moved one point on that function.
+9. **A longer tail.** In `horseBody()`, find the `tail` path. Its lowest
+   point is the `128 918` in the third curve. Change it to `110 980` and set
+   Pose to Full body: the tail sweeps further down and out. Every other
+   point stays put, because a path is just a list of points.
 10. **A bigger rosette.** In `giraffeFront()`, find the `rosette` region
     and change both `72`s to `90`. The forehead flower grows to touch the
     eyes; then try `50` and see how much calmer the face becomes.
