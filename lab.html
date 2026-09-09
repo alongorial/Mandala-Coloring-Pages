@@ -182,7 +182,7 @@ function fillPoses() {
   sel.innerHTML = '';
   for (const p of poses) {
     const o = document.createElement('option');
-    o.value = p; o.textContent = p;
+    o.value = p; o.textContent = POSE_LABELS[p] || p;
     sel.appendChild(o);
   }
   sel.value = poses.indexOf(keep) >= 0 ? keep : poses[0];
@@ -192,7 +192,7 @@ function drawAnatomy() {
   const svg = $('anatomy');
   svg.innerHTML = '';
   svg.appendChild(el('rect', { width: PAGE_W, height: PAGE_H, fill: 'white' }));
-  const animal = ANIMALS[$('animal').value][$('pose').value]();
+  const animal = ANIMALS[$('animal').value][$('pose').value](makeRng(1), DETAIL.medium);
   const grays = ['#e6e6e6', '#d2d2d2', '#bdbdbd', '#f2f2f2', '#c8c8c8'];
   // The halo centre: the point the background rings are drawn around.
   svg.appendChild(el('circle', { cx: animal.halo.cx, cy: animal.halo.cy, r: animal.halo.r, fill: 'none', stroke: '#bbb', 'stroke-dasharray': '8 8', 'stroke-width': 2 }));

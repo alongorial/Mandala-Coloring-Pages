@@ -157,7 +157,9 @@ each one lives in the code. Use the lab to see them in isolation.
 
 A mandala has a center and everything answers to it. Here the head is the
 center and the **halo** rings behind it (`drawHalo`) supply the radial
-rhythm: motifs repeated around a circle at even angles. The frame answers
+rhythm: motifs repeated around a circle at even angles. The full-body
+horse turns this inside out: the mandala is the centre and the animal
+wraps around it, which is the oldest mandala composition there is. The frame answers
 the halo with the same motifs in straight lines. Knob: `halo.r` in each
 animal sets how far out the rings start; `DETAIL[...].rings` how many.
 
@@ -247,7 +249,11 @@ edit the file, reload.
    and set Frame to Round. The corners grow and the fans look bigger by
    comparison. Try `R = 400` and watch the medallion nearly touch the
    page border.
-9. **A seventh family.** Copy `chevrons`, rename the copy `waves`, and
+9. **A fatter tail.** In `horseBody()`, find the `thick` table and change
+   the `[150, 26]` stop to `[150, 40]`. Set Pose to Full body. The tail
+   thickens along the left of the ring, because thickness is a function of
+   angle and you moved one point on that function.
+10. **A seventh family.** Copy `chevrons`, rename the copy `waves`, and
    replace the zigzag points with a sine wave (`Math.sin`). Add `waves` to
    `FAMILIES`, `DENSITY`, `DIRECTIONAL` and `DEFAULT_WEIGHTS.families`,
    then to one region's `families` list. Bump `GENERATOR_VERSION`. Open
