@@ -93,6 +93,9 @@ it (controls, printing). A few ideas make the whole thing hang together:
 
 - `index.html`: the page you print from: controls, print stylesheet, and
   the loading / "browser too old" message.
+- `lab.html`: the pattern lab. One family at a time with spacing, line
+  weight and angle sliders; all families side by side; and an anatomy
+  view showing each animal's pieces and band axes.
 - `generator.js`: everything that draws. Written in browser JavaScript no
   newer than about 2017 so older tablets can run it.
 - `favorites.json`: curated ratings, pasted in from an export. Starts
