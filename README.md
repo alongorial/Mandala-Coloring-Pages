@@ -4,13 +4,18 @@ A printable coloring-page generator: an animal silhouette (horse or giraffe)
 filled with dense repeating patterns and framed by ornamental flourishes,
 in the style of adult mandala coloring books.
 
-It is a single HTML file with plain JavaScript that draws SVG. No build
-tools, no frameworks, no server. Open it in a browser and print.
+It is a web page with plain JavaScript that draws SVG. No build tools, no
+frameworks, no server. Open it in a browser and print.
+
+**Open it here:** https://alongorial.github.io/Mandala-Coloring-Pages/
+(published from the `main` branch by GitHub Pages; the first publish
+happens when the "Publish to GitHub Pages" workflow runs after a merge).
 
 ## How to print a page
 
-1. Open `index.html` in a browser. On a phone, open it from Files, from a
-   link, or from the GitHub Pages address if this repo is published.
+1. Open the address above on any phone, tablet or computer. (Or download
+   `index.html` and `generator.js` together and open `index.html` from
+   Files; both files must sit side by side.)
 2. Pick an **Animal** (giraffe or horse) and a **Detail** level. Low gives
    big calm areas and fewer, larger motifs; High packs in more bands, more
    halo rings and finer patterns.
@@ -27,14 +32,22 @@ Every page prints a small label in its bottom border: the animal, the
 same animal and detail, reproduces the exact same page. The seed is also
 kept in the page address, so bookmarking the page works too.
 
-A seed reproduces a page for the version of `index.html` that made it.
-If the generator's code changes later, old seeds will still give a valid
-page, just not the identical one.
+A seed reproduces a page for the generator **version** that made it. The
+version is the small "v3" at the end of the label. When the drawing code
+changes, the version number goes up, and old seeds still give a valid page,
+just not the identical one.
+
+### Will it run on an old tablet?
+
+Open the address on the device. Within a few seconds you either see a
+coloring page, or a short message saying the browser could not run the
+generator. The message is the one-minute test: if you see it, update the
+browser (Chrome updates separately from Android) and try again.
 
 ## How it works
 
-Everything lives in `index.html`. A few ideas make the whole thing hang
-together:
+The drawing code lives in `generator.js`; `index.html` is the page around
+it (controls, printing). A few ideas make the whole thing hang together:
 
 - **The animal is a jigsaw of closed shapes.** Each animal is a short list
   of named, closed SVG paths drawn by hand: head, neck, ear, eye, muzzle,
@@ -65,6 +78,11 @@ together:
 
 ## Files
 
-- `index.html`: the whole generator.
+- `index.html`: the page you print from: controls, print stylesheet, and
+  the loading / "browser too old" message.
+- `generator.js`: everything that draws. Written in browser JavaScript no
+  newer than about 2017 so older tablets can run it.
+- `.github/workflows/pages.yml`: publishes the repo to GitHub Pages
+  whenever `main` changes.
 - `README.md`: this file.
 - `.gitignore`: keeps editor clutter and preview renders out of git.
