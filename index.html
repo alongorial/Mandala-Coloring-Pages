@@ -110,6 +110,14 @@
       <option value="random">Random</option>
     </select>
   </label>
+  <label>Behind
+    <select id="background">
+      <option value="rings">Rings</option>
+      <option value="scrollwork">Scrollwork</option>
+      <option value="both">Both</option>
+      <option value="plain">Plain</option>
+    </select>
+  </label>
   <label>Detail
     <select id="detail">
       <option value="low">Low</option>
@@ -193,7 +201,7 @@ window.onerror = function (message, source, line) {
    so a page can be bookmarked or shared and comes back identical.
    ===================================================================== */
 const $ = (id) => document.getElementById(id);
-const inputs = { subject: $('subject'), pose: $('pose'), frame: $('frame'), detail: $('detail'), seed: $('seed') };
+const inputs = { subject: $('subject'), pose: $('pose'), frame: $('frame'), background: $('background'), detail: $('detail'), seed: $('seed') };
 const randomSeed = () => Math.floor(Math.random() * 1000000);
 
 let current = null;   // the settings of the page on screen, plus its recipe
@@ -205,12 +213,14 @@ function readSettingsFromUrl() {
     subject,
     pose:    ANIMALS[subject][p.get('pose')] ? p.get('pose') : 'front',
     frame:   ['square', 'round', 'random'].indexOf(p.get('frame')) >= 0 ? p.get('frame') : 'square',
+    background: ['rings', 'scrollwork', 'both', 'plain'].indexOf(p.get('background')) >= 0 ? p.get('background') : 'rings',
     detail:  DETAIL[p.get('detail')] ? p.get('detail') : 'medium',
     seed:    /^\d+$/.test(p.get('seed') || '') ? Number(p.get('seed')) : randomSeed(),
   };
 }
 function currentSettings() {
-  return { subject: inputs.subject.value, pose: inputs.pose.value, frame: inputs.frame.value, detail: inputs.detail.value, seed: Number(inputs.seed.value) || 0 };
+  return { subject: inputs.subject.value, pose: inputs.pose.value, frame: inputs.frame.value,
+           background: inputs.background.value, detail: inputs.detail.value, seed: Number(inputs.seed.value) || 0 };
 }
 // The pose list depends on the animal (only the horse has a full body so far).
 function fillPoses(subject) {
@@ -229,9 +239,12 @@ function apply(settings) {
   settings.pose = inputs.pose.value;
   inputs.frame.value = settings.frame || 'square';
   settings.frame = inputs.frame.value;
+  inputs.background.value = settings.background || 'rings';
+  settings.background = inputs.background.value;
   inputs.detail.value = settings.detail;
   inputs.seed.value = settings.seed;
-  history.replaceState(null, '', `#subject=${settings.subject}&pose=${settings.pose}&frame=${settings.frame}&detail=${settings.detail}&seed=${settings.seed}`);
+  history.replaceState(null, '', `#subject=${settings.subject}&pose=${settings.pose}&frame=${settings.frame}` +
+    `&background=${settings.background}&detail=${settings.detail}&seed=${settings.seed}`);
   const result = render($('page'), settings);
   $('status').hidden = true;
   current = Object.assign({}, settings, { version: GENERATOR_VERSION, recipe: result.recipe, weights: result.weights });
@@ -260,7 +273,8 @@ const REASONS = [
 // Ratings saved before poses existed have no pose; they were profiles.
 const poseOf = (s) => s.pose || 'profile';
 const frameOf = (s) => s.frame || 'square';   // ratings older than the Frame control were square
-const pageId = (s) => `${s.subject}-${poseOf(s)}-${frameOf(s)}-${s.detail}-${s.seed}-v${s.version}`;
+const backgroundOf = (s) => s.background || 'rings';
+const pageId = (s) => `${s.subject}-${poseOf(s)}-${frameOf(s)}-${backgroundOf(s)}-${s.detail}-${s.seed}-v${s.version}`;
 
 function loadRatings() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch (e) { return []; }
@@ -287,7 +301,8 @@ function vote(kind) {
     removeRating(existing.id);
   } else {
     upsertRating({
-      id: pageId(current), subject: current.subject, pose: current.pose, frame: current.frame, detail: current.detail, seed: current.seed,
+      id: pageId(current), subject: current.subject, pose: current.pose, frame: current.frame,
+      background: current.background, detail: current.detail, seed: current.seed,
       version: current.version, vote: kind, tags: existing ? existing.tags : [],
       recipe: current.recipe, weights: current.weights, when: new Date().toISOString(),
     });
@@ -359,7 +374,7 @@ function makeCard(r) {
   card.appendChild(svg);
   const meta = document.createElement('div');
   meta.className = 'meta';
-  meta.innerHTML = `<b>${r.subject} ${poseOf(r)}</b> · ${frameOf(r)} · seed ${r.seed} · ${r.detail} · v${r.version}` +
+  meta.innerHTML = `<b>${r.subject} ${poseOf(r)}</b> · ${frameOf(r)} · ${backgroundOf(r)} · seed ${r.seed} · ${r.detail} · v${r.version}` +
     (r.vote === 'dislike' ? ' · 👎' : '') +
     (r.tags.length ? `<br><span class="hint">${r.tags.join(', ')}</span>` : '');
   card.appendChild(meta);
@@ -368,7 +383,7 @@ function makeCard(r) {
   const open = document.createElement('button');
   open.textContent = 'Open';
   open.addEventListener('click', () => {
-    apply({ subject: r.subject, pose: poseOf(r), frame: frameOf(r), detail: r.detail, seed: r.seed, weights: r.weights });
+    apply({ subject: r.subject, pose: poseOf(r), frame: frameOf(r), background: backgroundOf(r), detail: r.detail, seed: r.seed, weights: r.weights });
     window.scrollTo(0, 0);
     if (r.version !== GENERATOR_VERSION) {
       $('status').hidden = false;
@@ -382,7 +397,7 @@ function makeCard(r) {
   actions.append(open, remove);
   card.appendChild(actions);
   // Draw the thumbnail after the card is on screen (getBBox needs that).
-  setTimeout(() => render(svg, { subject: r.subject, pose: poseOf(r), frame: frameOf(r), detail: r.detail, seed: r.seed, weights: r.weights }), 0);
+  setTimeout(() => render(svg, { subject: r.subject, pose: poseOf(r), frame: frameOf(r), background: backgroundOf(r), detail: r.detail, seed: r.seed, weights: r.weights }), 0);
   return card;
 }
 

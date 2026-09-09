@@ -42,7 +42,8 @@ in and sees the other's favorites, is the planned next phase.
    Files; both files must sit side by side.)
 2. Pick an **Animal** (giraffe or horse), a **Pose** (front face,
    profile, or for the horse a rearing full body), a
-   **Frame** (square, round, or let the seed decide) and a **Detail**
+   **Frame** (square, round, or let the seed decide), what goes **Behind**
+   the animal (rings, scrollwork, both, or a plain page) and a **Detail**
    level. Low gives
    big calm areas and fewer, larger motifs; High packs in more bands, more
    halo rings and finer patterns; Dense fills nearly everything, in the
@@ -132,6 +133,11 @@ it (controls, printing). A few ideas make the whole thing hang together:
   acanthus scrolls, feathers and woven knotwork. Front faces also carry a
   layered rosette on the forehead, the centre of the mandala. Every family is built from closed shapes
   or lines that run edge to edge, so it can never leave an unclosed pocket.
+- **The background is simply drawn first.** Whatever goes behind the
+  animal (rings of ornament, a field of acanthus scrolls, or nothing) is
+  drawn before the animal and in a lighter line. It needs no clipping of
+  its own, because every animal region paints itself white before its
+  pattern and so covers whatever lies beneath.
 - **The frame and halo use the same machinery.** The square border is
   four patterned rectangles plus corner medallions; the round frame is one
   big patterned ring; the halo behind the head is a set of donut-shaped
