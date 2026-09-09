@@ -1,0 +1,14 @@
+# OS and editor clutter
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# Preview renders made while developing (not part of the page)
+preview/
+*.png
+*.pdf
+
+# Node, in case tooling is ever added
+node_modules/

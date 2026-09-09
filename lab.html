@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pattern Lab · Mandala Coloring Pages</title>
+<style>
+  body {
+    margin: 0;
+    font-family: -apple-system, system-ui, sans-serif;
+    background: #e9e6df;
+    color: #222;
+  }
+  header { padding: 12px 16px; background: #fffdf7; border-bottom: 1px solid #cfc9b8; }
+  header h1 { margin: 0; font-size: 20px; }
+  header a { color: #2f6f4e; }
+  main { max-width: 900px; margin: 0 auto; padding: 12px; }
+  section { background: #fffdf7; border: 1px solid #cfc9b8; border-radius: 8px; padding: 14px; margin: 14px 0; }
+  h2 { margin: 0 0 6px; font-size: 18px; }
+  p { margin: 6px 0 10px; line-height: 1.45; }
+  .hint { font-size: 13px; color: #6b665a; }
+  label { display: flex; align-items: center; gap: 10px; margin: 8px 0; font-size: 15px; }
+  label span.name { width: 110px; }
+  label span.value { width: 140px; font-variant-numeric: tabular-nums; }
+  input[type=range] { flex: 1; min-height: 44px; }
+  input[type=number], select { font-size: 16px; padding: 8px; min-height: 44px; }
+  button { font-size: 16px; padding: 8px 16px; min-height: 44px; border-radius: 6px; border: 1px solid #8a836f; background: #f5f1e6; }
+  .swatch { display: block; width: 100%; max-width: 420px; height: auto; background: white; border: 1px solid #ddd; margin: 8px 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  .grid figure { margin: 0; }
+  .grid svg { width: 100%; height: auto; background: white; border: 1px solid #ddd; display: block; }
+  .grid figcaption { font-size: 13px; text-align: center; margin-top: 4px; }
+  .anatomy { display: block; width: 100%; max-width: 520px; height: auto; background: white; border: 1px solid #ddd; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Pattern Lab</h1>
+  <a href="index.html">← back to the generator</a>
+</header>
+
+<main>
+<section>
+  <h2>One family at a time</h2>
+  <p>Every pattern in the generator comes from one of six small functions,
+  called families. Each family is handed a rectangle, a spacing and a random
+  number generator, and returns shapes. Here you can watch a single family
+  react to its knobs. Spacing is the distance between motif centres, in page
+  units where 100 units is one inch.</p>
+  <label><span class="name">Family</span>
+    <select id="family"></select>
+  </label>
+  <label><span class="name">Spacing</span>
+    <input type="range" id="spacing" min="16" max="140" value="50">
+    <span class="value" id="spacing-value"></span>
+  </label>
+  <label><span class="name">Line weight</span>
+    <input type="range" id="weight" min="0.8" max="5" step="0.1" value="1.7">
+    <span class="value" id="weight-value"></span>
+  </label>
+  <label><span class="name">Angle</span>
+    <input type="range" id="angle" min="0" max="180" value="0">
+    <span class="value" id="angle-value"></span>
+  </label>
+  <label><span class="name">Seed</span>
+    <input type="number" id="seed" value="1" inputmode="numeric">
+    <button id="reseed">New seed</button>
+  </label>
+  <svg class="swatch" id="swatch" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"></svg>
+  <p class="hint" id="swatch-note"></p>
+</section>
+
+<section>
+  <h2>All families at the same spacing</h2>
+  <p>The same spacing looks very different from family to family: a spot is
+  one closed shape per cell, while chevrons put several lines in the same
+  distance. That is why the generator scales each family's spacing with
+  the <code>DENSITY</code> table in <code>generator.js</code>. The captions
+  show the spacing after that scaling, which is what the generator would
+  actually draw. Slide to compare.</p>
+  <label><span class="name">Spacing</span>
+    <input type="range" id="all-spacing" min="16" max="140" value="50">
+    <span class="value" id="all-spacing-value"></span>
+  </label>
+  <div class="grid" id="all"></div>
+</section>
+
+<section>
+  <h2>Anatomy of an animal</h2>
+  <p>An animal is a jigsaw of closed pieces, drawn back to front. Each piece
+  is shaded a different gray here so you can see where one ends and the
+  next begins; the arrow in a piece is its axis, the direction the wavy
+  band dividers cross. None of this shading is ever printed.</p>
+  <label><span class="name">Animal</span>
+    <select id="animal">
+      <option value="giraffe">Giraffe</option>
+      <option value="horse">Horse</option>
+    </select>
+  </label>
+  <svg class="anatomy" id="anatomy" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850 1100"></svg>
+</section>
+</main>
+
+<script src="generator.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const mm = (units) => (units * 0.254).toFixed(1) + ' mm';
+
+/* ---------- One family ---------- */
+const familyNames = Object.keys(FAMILIES);
+for (const name of familyNames) {
+  const o = document.createElement('option');
+  o.value = name; o.textContent = name;
+  $('family').appendChild(o);
+}
+
+// Draw one family into a rounded square, using the very same drawRegion
+// the generator uses, so what you see here is what a band would get.
+function drawSwatch(svg, familyName, spacing, weight, angle, seed) {
+  svg.innerHTML = '';
+  const defs = el('defs'); svg.appendChild(defs);
+  const layer = el('g'); svg.appendChild(layer);
+  const saved = STROKE.pattern;
+  STROKE.pattern = weight;
+  const ctx = { svg, defs, layer, rng: makeRng(seed), detail: DETAIL.medium, recipe: [] };
+  drawRegion(ctx, {
+    d: 'M40 12 H360 Q388 12 388 40 V360 Q388 388 360 388 H40 Q12 388 12 360 V40 Q12 12 40 12 Z',
+    pattern: FAMILIES[familyName], spacing, opts: { angle }, thin: true,
+  });
+  STROKE.pattern = saved;
+}
+
+function updateSwatch() {
+  const spacing = Number($('spacing').value), weight = Number($('weight').value), angle = Number($('angle').value);
+  $('spacing-value').textContent = spacing + ' units = ' + mm(spacing);
+  $('weight-value').textContent = weight + ' units = ' + mm(weight);
+  $('angle-value').textContent = angle + '°';
+  drawSwatch($('swatch'), $('family').value, spacing, weight, angle, Number($('seed').value) || 0);
+  const directional = DIRECTIONAL.has(FAMILIES[$('family').value]);
+  $('swatch-note').textContent = directional
+    ? 'This family cares about direction; the angle slider rotates it.'
+    : 'This family looks the same from every direction; the angle slider does nothing to it.';
+}
+for (const id of ['family', 'spacing', 'weight', 'angle', 'seed']) $(id).addEventListener('input', updateSwatch);
+$('reseed').addEventListener('click', () => { $('seed').value = Math.floor(Math.random() * 1000000); updateSwatch(); });
+updateSwatch();
+
+/* ---------- All families ---------- */
+function updateAll() {
+  const spacing = Number($('all-spacing').value);
+  $('all-spacing-value').textContent = spacing + ' units = ' + mm(spacing);
+  const grid = $('all');
+  grid.innerHTML = '';
+  for (const name of familyNames) {
+    const fig = document.createElement('figure');
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 400 400');
+    fig.appendChild(svg);
+    const cap = document.createElement('figcaption');
+    const scaled = Math.max(MIN_SPACING, spacing * DENSITY[name]);
+    cap.textContent = name + ' · ' + Math.round(scaled) + ' units';
+    fig.appendChild(cap);
+    grid.appendChild(fig);
+    drawSwatch(svg, name, scaled, STROKE.pattern, 0, 7);
+  }
+}
+$('all-spacing').addEventListener('input', updateAll);
+updateAll();
+
+/* ---------- Anatomy ---------- */
+function drawAnatomy() {
+  const svg = $('anatomy');
+  svg.innerHTML = '';
+  svg.appendChild(el('rect', { width: PAGE_W, height: PAGE_H, fill: 'white' }));
+  const animal = ANIMALS[$('animal').value]();
+  const grays = ['#e6e6e6', '#d2d2d2', '#bdbdbd', '#f2f2f2', '#c8c8c8'];
+  // The halo centre: the point the background rings are drawn around.
+  svg.appendChild(el('circle', { cx: animal.halo.cx, cy: animal.halo.cy, r: animal.halo.r, fill: 'none', stroke: '#bbb', 'stroke-dasharray': '8 8', 'stroke-width': 2 }));
+  animal.regions.forEach((region, i) => {
+    svg.appendChild(el('path', { d: region.d, fill: grays[i % grays.length], stroke: 'black', 'stroke-width': 2.5 }));
+  });
+  // Labels and axes go on top so nothing hides them.
+  animal.regions.forEach((region, i) => {
+    const probe = el('path', { d: region.d });
+    svg.appendChild(probe);
+    const bb = probe.getBBox();
+    svg.removeChild(probe);
+    if (region.axis) {
+      const [p0, p1] = region.axis;
+      svg.appendChild(el('path', { d: `M${p0[0]} ${p0[1]} L${p1[0]} ${p1[1]}`, stroke: '#2f6f4e', 'stroke-width': 3, 'stroke-dasharray': '10 6', fill: 'none' }));
+      svg.appendChild(el('circle', { cx: p1[0], cy: p1[1], r: 7, fill: '#2f6f4e' }));
+    }
+    const name = region.name || (i === 0 ? 'mane' : '');
+    if (name) {
+      const cx = Math.min(Math.max(bb.x + bb.width / 2, 100), PAGE_W - 100);
+      const cy = Math.min(bb.y + bb.height / 2, PAGE_H - 60);
+      svg.appendChild(el('text', { x: cx, y: cy, 'text-anchor': 'middle', 'font-size': 22, 'font-family': 'sans-serif',
+        fill: 'black', stroke: 'white', 'stroke-width': 5, 'paint-order': 'stroke' }, [document.createTextNode(name)]));
+    }
+  });
+}
+$('animal').addEventListener('change', drawAnatomy);
+drawAnatomy();
+</script>
+</body>
+</html>
