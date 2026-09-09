@@ -21,7 +21,7 @@
 // Bump this whenever anything that affects the drawing changes. A seed
 // only reproduces a page for the version that made it, so the version is
 // printed on the page label and saved with every favorite.
-const GENERATOR_VERSION = 6;
+const GENERATOR_VERSION = 7;
 
 const PAGE_W = 850, PAGE_H = 1100;
 const STROKE = { outline: 4.5, divider: 3, pattern: 1.7 };
@@ -873,13 +873,41 @@ const ANIMALS = {
    each inner corner. The halo is a set of patterned rings behind the
    animal's head, which turns the empty paper into part of the mandala.
    ===================================================================== */
-function drawFrame(ctx) {
-  const { svg, rng } = ctx;
-  const o = FRAME.inset, W = FRAME.band, i = o + W;
-  const inner = { x: i, y: i, w: PAGE_W - 2 * i, h: PAGE_H - 2 * i };
+// The frame decides three things for the rest of the page: the shape the
+// animal is clipped to, where the corner fans go, and how much the
+// animal is scaled to fit. It returns them, plus a group of border lines
+// that render() draws on top of everything at the end.
+function drawFrame(ctx, kind, pose) {
+  const { rng } = ctx;
   const rect = (x, y, w, h) => `M${x} ${y} h${w} v${h} h${-w} Z`;
+  const lines = el('g', { fill: 'none', stroke: 'black', 'stroke-width': STROKE.outline });
+  const o = FRAME.inset, W = FRAME.band, i = o + W;
 
-  // One family for all four sides so the frame feels like one object.
+  if (kind === 'round') {
+    // A medallion: a patterned ring centred a little above the page
+    // centre, with the animal inside and fans in the four corners.
+    const cx = CX, cy = 540, R = 370, rIn = R - W;
+    const ringKind = weightedPick(rng, ['petals', 'beads', 'rays', 'zigzag'], ctx.weights.halo);
+    ctx.recipe.push({ part: 'halo', band: -1, family: ringKind });
+    drawRegion(ctx, { d: ringPath(cx, cy, rIn, R), evenodd: true, pattern: ringMotif,
+      spacing: ringKind === 'rays' ? 20 : 30, opts: { cx, cy, rIn, rOut: R, kind: ringKind }, thin: true });
+    for (const [x, y, sx, sy] of [[o, o, 1, 1], [PAGE_W - o, o, -1, 1], [o, PAGE_H - o, 1, -1], [PAGE_W - o, PAGE_H - o, -1, -1]]) {
+      cornerFan(ctx, x, y, sx, sy, 150);
+    }
+    lines.appendChild(el('rect', { x: o, y: o, width: PAGE_W - 2 * o, height: PAGE_H - 2 * o, 'stroke-width': STROKE.divider }));
+    lines.appendChild(el('circle', { cx, cy, r: R }));
+    lines.appendChild(el('circle', { cx, cy, r: rIn }));
+    return {
+      clipD: circlePath(cx, cy, rIn),
+      // Profiles were drawn for the full page, so they shrink a bit more.
+      scale: pose === 'profile' ? 0.82 : 0.88, center: [cx, cy],
+      maxHalo: rIn - 10, lines,
+    };
+  }
+
+  // Square: a patterned band between two border lines, corner medallions,
+  // and quarter fans inside the inner corners.
+  const inner = { x: i, y: i, w: PAGE_W - 2 * i, h: PAGE_H - 2 * i };
   const family = FAMILIES[weightedPick(rng, ['scales', 'chevrons', 'spirals'], ctx.weights.frame)];
   ctx.recipe.push({ part: 'frame', family: family.name });
   const spacing = W * (family === scales ? 0.9 : 0.8);
@@ -889,41 +917,37 @@ function drawFrame(ctx) {
     { d: rect(o, i, W, inner.h),           angle: 90 },  // left
     { d: rect(PAGE_W - i, i, W, inner.h),  angle: 90 },  // right
   ];
-  for (const s of sides) drawRegion(ctx, { d: s.d, pattern: family, spacing, opts: { angle: s.angle }, thin: true });
-
-  // Corner medallions: a circle with a spiral, in each corner square.
+  for (const sd of sides) drawRegion(ctx, { d: sd.d, pattern: family, spacing, opts: { angle: sd.angle }, thin: true });
   for (const [cx, cy] of [[o + W / 2, o + W / 2], [PAGE_W - o - W / 2, o + W / 2],
                           [o + W / 2, PAGE_H - o - W / 2], [PAGE_W - o - W / 2, PAGE_H - o - W / 2]]) {
     drawRegion(ctx, { d: rect(cx - W / 2, cy - W / 2, W, W), pattern: spirals, spacing: W * 0.96, thin: true });
   }
-
-  // Border lines.
-  svg.appendChild(el('rect', { x: o, y: o, width: PAGE_W - 2 * o, height: PAGE_H - 2 * o,
-    fill: 'none', stroke: 'black', 'stroke-width': STROKE.outline }));
-  svg.appendChild(el('rect', { x: i, y: i, width: inner.w, height: inner.h,
-    fill: 'none', stroke: 'black', 'stroke-width': STROKE.outline }));
-
-  return inner;
+  for (const [x, y, sx, sy] of [[i, i, 1, 1], [PAGE_W - i, i, -1, 1], [i, PAGE_H - i, 1, -1], [PAGE_W - i, PAGE_H - i, -1, -1]]) {
+    cornerFan(ctx, x, y, sx, sy, 118);
+  }
+  lines.appendChild(el('rect', { x: o, y: o, width: PAGE_W - 2 * o, height: PAGE_H - 2 * o }));
+  lines.appendChild(el('rect', { x: i, y: i, width: inner.w, height: inner.h }));
+  return { clipD: rect(i, i, inner.w, inner.h), scale: 1, center: [CX, PAGE_H / 2], maxHalo: Infinity, lines };
 }
 
-// A quarter-circle fan at a corner of the inner area. sx and sy say
-// which way the quarter opens (+1 right/down, -1 left/up).
-function cornerFan(ctx, cx, cy, sx, sy) {
+// A quarter-circle fan at a corner. sx and sy say which way the quarter
+// opens (+1 right/down, -1 left/up).
+function cornerFan(ctx, cx, cy, sx, sy, R) {
   const { rng } = ctx;
-  const R = 118;
   const sweep = sx * sy > 0 ? 1 : 0;
   const d = `M${cx} ${cy} L${cx + sx * R} ${cy} A${R} ${R} 0 0 ${sweep} ${cx} ${cy + sy * R} Z`;
   drawRegion(ctx, { d, pattern: ringMotif, spacing: 30,
     opts: { cx, cy, rIn: R * 0.3, rOut: R * 0.92, kind: rng.pick(['petals', 'rays', 'zigzag']) }, thin: true });
 }
 
-function drawHalo(ctx, halo) {
+function drawHalo(ctx, halo, maxR) {
   const { rng, detail } = ctx;
   const width = 38, gap = 24;
   const kinds = ['petals', 'beads', 'rays', 'zigzag'];
   let last = null;
   for (let k = 0; k < detail.rings; k++) {
     const rIn = halo.r + k * (width + gap), rOut = rIn + width;
+    if (rOut > maxR) break;                     // a ring must fit inside a round frame
     const kind = weightedPick(rng, kinds.filter(x => x !== last), ctx.weights.halo);
     last = kind;
     ctx.recipe.push({ part: 'halo', band: k, family: kind });
@@ -939,6 +963,7 @@ function drawHalo(ctx, halo) {
 function render(svg, settings) {
   const subject = settings.subject, detailName = settings.detail, seed = settings.seed;
   const pose = ANIMALS[subject][settings.pose] ? settings.pose : 'front';
+  const frameChoice = ['square', 'round', 'random'].indexOf(settings.frame) >= 0 ? settings.frame : 'square';
   svg.innerHTML = '';
   renderCounter++;
   idCounter = 0;
@@ -956,38 +981,43 @@ function render(svg, settings) {
 
   const frameLayer = el('g');
   svg.appendChild(frameLayer);
-  const inner = drawFrame({ svg, defs, layer: frameLayer, rng, detail, recipe, weights });
+  // 'random' lets the seed decide the frame.
+  const frameKind = frameChoice === 'random' ? (rng.chance(0.5) ? 'round' : 'square') : frameChoice;
+  const frame = drawFrame({ svg, defs, layer: frameLayer, rng, detail, recipe, weights }, frameKind, pose);
 
-  // Everything inside the inner border lives in one clipped group, so
-  // the neck and the halo run cleanly off the edge and the border
-  // closes them.
+  // Everything inside the frame lives in one clipped group, so the neck
+  // and the halo run cleanly off the edge and the frame closes them.
+  // A round frame also shrinks the animal a little to fit; the strokes
+  // are thickened by the same amount so the printed lines stay the same.
   const artClip = nextId();
-  defs.appendChild(el('clipPath', { id: artClip }, [
-    el('rect', { x: inner.x, y: inner.y, width: inner.w, height: inner.h })]));
+  defs.appendChild(el('clipPath', { id: artClip }, [el('path', { d: frame.clipD })]));
   const art = el('g', { 'clip-path': `url(#${artClip})` });
+  const [fx, fy] = frame.center, sc = frame.scale;
+  const inner = el('g', sc === 1 ? {} : { transform: `translate(${f(fx)} ${f(fy)}) scale(${sc}) translate(${f(-fx)} ${f(-fy)})` });
+  const savedStroke = Object.assign({}, STROKE);
+  for (const k in STROKE) STROKE[k] = savedStroke[k] / sc;
   const layer = el('g');
   const details = el('g', { fill: 'none', stroke: 'black', 'stroke-width': STROKE.divider,
     'stroke-linecap': 'round' });
-  art.append(layer, details);
+  inner.append(layer, details);
+  art.appendChild(inner);
   svg.appendChild(art);
 
   const ctx = { svg, defs, layer, rng, detail, recipe, weights };
   const animal = ANIMALS[subject][pose]();
-  cornerFan(ctx, inner.x, inner.y, 1, 1);
-  cornerFan(ctx, inner.x + inner.w, inner.y, -1, 1);
-  cornerFan(ctx, inner.x, inner.y + inner.h, 1, -1);
-  cornerFan(ctx, inner.x + inner.w, inner.y + inner.h, -1, -1);
-  drawHalo(ctx, animal.halo);
+  drawHalo(ctx, animal.halo, frame.maxHalo / sc);
   for (const region of animal.regions) drawRegion(ctx, region);
   for (const d of animal.details) details.appendChild(d);
+  Object.assign(STROKE, savedStroke);
+  svg.appendChild(frame.lines);
 
   // A small label in the bottom band so the seed survives on paper.
-  const label = `${subject} ${pose} · seed ${seed} · detail ${detailName} · v${GENERATOR_VERSION}`;
+  const label = `${subject} ${pose} · ${frameKind} · seed ${seed} · detail ${detailName} · v${GENERATOR_VERSION}`;
   const lw = label.length * 6.2 + 24, ly = PAGE_H - FRAME.inset - FRAME.band / 2;
   svg.appendChild(el('rect', { x: PAGE_W / 2 - lw / 2, y: ly - 11, width: lw, height: 22,
     fill: 'white', stroke: 'black', 'stroke-width': STROKE.pattern }));
   svg.appendChild(el('text', { x: PAGE_W / 2, y: ly + 4, 'text-anchor': 'middle',
     'font-family': 'Georgia, serif', 'font-size': 11, fill: 'black' }, [document.createTextNode(label)]));
 
-  return { label, recipe, weights };
+  return { label, recipe, weights, frame: frameKind };
 }

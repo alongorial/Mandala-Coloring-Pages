@@ -41,7 +41,8 @@ in and sees the other's favorites, is the planned next phase.
    `index.html` and `generator.js` together and open `index.html` from
    Files; both files must sit side by side.)
 2. Pick an **Animal** (giraffe or horse), a **Pose** (front face or
-   profile) and a **Detail** level. Low gives
+   profile), a **Frame** (square, round, or let the seed decide) and a
+   **Detail** level. Low gives
    big calm areas and fewer, larger motifs; High packs in more bands, more
    halo rings and finer patterns.
 3. Press **Regenerate** until you see a page you like. Every press draws a
@@ -122,10 +123,12 @@ it (controls, printing). A few ideas make the whole thing hang together:
   generator and a spacing, it returns SVG elements. Spots, spirals, scales,
   chevrons, petals, mane strands. Every family is built from closed shapes
   or lines that run edge to edge, so it can never leave an unclosed pocket.
-- **The frame and halo use the same machinery.** The border is four
-  patterned rectangles plus corner medallions; the halo behind the head is
-  a set of donut-shaped regions with petals, beads, rays or zigzags. They
-  are ordinary regions, just with fixed patterns.
+- **The frame and halo use the same machinery.** The square border is
+  four patterned rectangles plus corner medallions; the round frame is one
+  big patterned ring; the halo behind the head is a set of donut-shaped
+  regions with petals, beads, rays or zigzags. They are ordinary regions,
+  just with fixed patterns. The frame also hands back the shape the animal
+  is clipped to and how much to shrink it, so a round page just works.
 - **Randomness is seeded.** A tiny seeded random generator means the same
   seed always produces the same page.
 - **Print sizing is baked in.** The SVG is US Letter at 100 units per inch
