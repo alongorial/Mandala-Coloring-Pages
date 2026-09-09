@@ -100,6 +100,16 @@ listed back to front. Each region paints itself white before its pattern,
 so where the ear tucks behind the head, the head simply covers the join.
 Open `lab.html` and look at the Anatomy section to see the pieces shaded.
 
+### Front faces: draw half, mirror the rest
+
+`giraffeFront()` and `horseFront()` draw only the left half of the face.
+`symmetric(halfPath, CX)` builds the closed whole: the half runs from the
+centre line at the top down to the centre line at the bottom, and the
+function appends the same curves backwards with every x reflected across
+`CX`. Paired pieces (ears, eyes, ossicones, nostrils) are one path plus
+`mirrorPath(path, CX)`. Fewer numbers to type, and perfect symmetry for
+free, which is exactly the mandala feel.
+
 ### Closure comes from clipping, not from geometry
 
 The requirement "every region closed" sounds like it needs clever maths.
@@ -223,7 +233,11 @@ edit the file, reload.
    `0.22`, or leave it where you preferred and bump `GENERATOR_VERSION`.
 6. **Line weights.** Set every `STROKE` value to `2.5`. Reload. Notice the
    drawing going flat. Put the three weights back.
-7. **A seventh family.** Copy `chevrons`, rename the copy `waves`, and
+7. **Move one eye.** In `giraffeFront()`, change the `306` at the start
+   of the `eye` path to `296` (and the iris circle's `cx: 332` to `322`).
+   Reload with Pose set to Front face. Both eyes move outward, because the
+   right eye is the mirror of the left.
+8. **A seventh family.** Copy `chevrons`, rename the copy `waves`, and
    replace the zigzag points with a sine wave (`Math.sin`). Add `waves` to
    `FAMILIES`, `DENSITY`, `DIRECTIONAL` and `DEFAULT_WEIGHTS.families`,
    then to one region's `families` list. Bump `GENERATOR_VERSION`. Open

@@ -21,7 +21,7 @@
 // Bump this whenever anything that affects the drawing changes. A seed
 // only reproduces a page for the version that made it, so the version is
 // printed on the page label and saved with every favorite.
-const GENERATOR_VERSION = 5;
+const GENERATOR_VERSION = 6;
 
 const PAGE_W = 850, PAGE_H = 1100;
 const STROKE = { outline: 4.5, divider: 3, pattern: 1.7 };
@@ -465,6 +465,54 @@ function drawRegion(ctx, region) {
 }
 
 /* =====================================================================
+   Mirror helpers
+   A face seen from the front is symmetric, so we draw only the left
+   half and mirror it. Paths here use only absolute M, L, C, Q and Z,
+   which keeps the parser tiny.
+   ===================================================================== */
+function parsePath(d) {
+  const tokens = d.match(/[MLCQZ]|-?\d*\.?\d+/g) || [];
+  const segs = [];
+  let i = 0;
+  while (i < tokens.length) {
+    const cmd = tokens[i++];
+    const count = { M: 2, L: 2, C: 6, Q: 4, Z: 0 }[cmd];
+    const nums = [];
+    for (let k = 0; k < count; k++) nums.push(Number(tokens[i++]));
+    segs.push({ cmd, nums });
+  }
+  return segs;
+}
+
+// The same path reflected left-to-right across the vertical line x = cx.
+function mirrorPath(d, cx) {
+  return parsePath(d).map(s =>
+    s.cmd + s.nums.map((n, i) => f(i % 2 === 0 ? 2 * cx - n : n)).join(' ')).join(' ');
+}
+
+// A closed symmetric shape from its left half. The half starts on the
+// centre line, runs down the left side and ends on the centre line; the
+// mirrored half is appended backwards (a curve run backwards swaps its
+// two control points) and the shape is closed.
+function symmetric(halfD, cx) {
+  const segs = parsePath(halfD);
+  const ends = segs.map(s => s.nums.slice(-2));
+  const mx = (x) => f(2 * cx - x);
+  const back = [];
+  for (let i = segs.length - 1; i >= 1; i--) {
+    const s = segs[i], prev = ends[i - 1];
+    if (s.cmd === 'C') back.push(`C${mx(s.nums[2])} ${f(s.nums[3])} ${mx(s.nums[0])} ${f(s.nums[1])} ${mx(prev[0])} ${f(prev[1])}`);
+    else if (s.cmd === 'Q') back.push(`Q${mx(s.nums[0])} ${f(s.nums[1])} ${mx(prev[0])} ${f(prev[1])}`);
+    else back.push(`L${mx(prev[0])} ${f(prev[1])}`);
+  }
+  return halfD.trim() + ' ' + back.join(' ') + ' Z';
+}
+
+// Small helpers for the thin details: a stroke, and a stroke plus its mirror.
+const detail = (d) => el('path', { d });
+const mirrored = (d, cx) => [el('path', { d }), el('path', { d: mirrorPath(d, cx) })];
+
+/* =====================================================================
    6. The animals
    Each animal is a jigsaw of closed paths in page coordinates, facing
    left. Regions are listed back-to-front: things drawn later cover
@@ -658,7 +706,165 @@ function horse() {
   };
 }
 
-const ANIMALS = { giraffe, horse };
+/* ---------- Front views: the left half is drawn, the right is mirrored ---------- */
+const CX = PAGE_W / 2;   // the centre line every front view is mirrored across
+
+function giraffeFront() {
+  const bottom = PAGE_H + 20;
+
+  // Neck: from behind the muzzle, widening as it leaves the page.
+  const neck = symmetric(`M${CX} 640 C372 640, 345 720, 325 ${bottom} L${CX} ${bottom}`, CX);
+
+  // A tuft of hair between the ossicones; the head covers its base.
+  const tuft = symmetric(`M${CX} 250 C408 252, 396 274, 404 312 C412 316, 418 318, ${CX} 318`, CX);
+
+  const ossicone = `
+    M384 318
+    C382 284, 384 254, 386 228
+    C368 214, 374 176, 394 176
+    C414 176, 420 214, 402 228
+    C404 254, 408 284, 410 318 Z`;
+
+  const ear = `
+    M330 345
+    C290 315, 225 300, 190 328
+    C182 346, 218 386, 280 402
+    C306 409, 322 406, 330 402 Z`;
+
+  const innerEar = `
+    M322 356
+    C290 334, 238 322, 210 338
+    C208 350, 236 376, 284 390
+    C302 394, 314 392, 322 390 Z`;
+
+  // The muzzle shares the head's last curve, so it sits exactly on the face.
+  const chin = `C372 748, 398 762, ${CX} 764`;
+  const head = symmetric(`
+    M${CX} 300
+    C395 297, 352 305, 330 330
+    C306 360, 296 405, 298 450
+    C302 510, 322 555, 340 600
+    C352 640, 356 680, 362 715
+    ${chin}`, CX);
+
+  const muzzle = symmetric(`M${CX} 655 C400 650, 372 668, 362 715 ${chin}`, CX);
+
+  const eye = `
+    M306 452
+    C320 432, 346 434, 358 454
+    C346 470, 320 472, 306 452 Z`;
+
+  const nostril = `
+    M392 690
+    C380 690, 376 706, 386 712
+    C396 716, 402 704, 396 694 Z`;
+
+  return {
+    halo: { cx: CX, cy: 500, r: 245 },
+    regions: [
+      { name: 'neck', d: neck, families: ['spots', 'scales', 'petals', 'chevrons', 'spirals'], spacing: 62,
+        axis: [[CX, 700], [CX, 1100]], bands: [1, 2], calm: true },
+      { name: 'tuft', d: tuft, families: ['strands'], spacing: 26, axis: [[CX, 250], [CX, 318]] },
+      { name: 'ossicone', d: ossicone, families: ['spirals', 'scales', 'petals'], spacing: 28, axis: [[397, 318], [394, 176]] },
+      { name: 'ossicone', d: mirrorPath(ossicone, CX), families: ['spirals', 'scales', 'petals'], spacing: 28, axis: [[453, 318], [456, 176]] },
+      { name: 'ear', d: ear }, { name: 'ear', d: mirrorPath(ear, CX) },
+      { name: 'ear', d: innerEar, families: ['spirals', 'scales', 'chevrons'], spacing: 30, axis: [[322, 390], [210, 338]] },
+      { name: 'ear', d: mirrorPath(innerEar, CX), families: ['spirals', 'scales', 'chevrons'], spacing: 30, axis: [[528, 390], [640, 338]] },
+      { name: 'head', d: head, families: ['spots', 'spirals', 'petals', 'scales', 'chevrons'], spacing: 48,
+        axis: [[CX, 300], [CX, 764]], bands: [2, 3] },
+      { name: 'muzzle', d: muzzle, families: ['spirals', 'petals', 'scales'], spacing: 34, axis: [[CX, 655], [CX, 764]], calm: true, bands: [1, 1] },
+      { name: 'eye', d: eye }, { name: 'eye', d: mirrorPath(eye, CX) },
+      { name: 'nostril', d: nostril, thin: true }, { name: 'nostril', d: mirrorPath(nostril, CX), thin: true },
+    ],
+    details: [
+      el('circle', { cx: 332, cy: 452, r: 10 }), el('circle', { cx: 2 * CX - 332, cy: 452, r: 10 }),
+      el('circle', { cx: 332, cy: 452, r: 4, fill: 'black' }), el('circle', { cx: 2 * CX - 332, cy: 452, r: 4, fill: 'black' }),
+      detail(`M${CX - 40} 742 C${CX - 20} 750, ${CX + 20} 750, ${CX + 40} 742`),   // mouth
+    ].concat(
+      mirrored('M310 442 C306 434, 304 426, 304 418', CX),        // lashes
+      mirrored('M324 436 C322 428, 322 420, 323 412', CX),
+      mirrored('M312 418 C328 404, 352 402, 368 410', CX),        // brow
+      mirrored('M330 570 C336 600, 346 622, 358 640', CX),        // cheek line
+    ),
+  };
+}
+
+function horseFront() {
+  const bottom = PAGE_H + 20;
+
+  // The mane shows behind the neck on both sides; the neck sits over it.
+  const mane = symmetric(`M${CX} 560 C350 560, 318 760, 314 ${bottom} L${CX} ${bottom}`, CX);
+  const neck = symmetric(`M${CX} 640 C384 640, 362 760, 350 ${bottom} L${CX} ${bottom}`, CX);
+
+  const ear = `
+    M384 300
+    C368 260, 354 216, 348 180
+    C330 218, 326 264, 336 320 Z`;
+
+  const innerEar = `
+    M374 302
+    C364 270, 356 238, 350 206
+    C340 234, 338 270, 344 312 Z`;
+
+  const chin = `C402 768, 416 772, ${CX} 772`;
+  const head = symmetric(`
+    M${CX} 290
+    C392 288, 352 300, 336 335
+    C318 375, 316 435, 322 480
+    C332 545, 350 600, 358 650
+    C366 700, 374 732, 388 754
+    ${chin}`, CX);
+
+  // A lock of forelock falling between the ears to a point on the forehead.
+  const forelock = symmetric(`M${CX} 286 C396 284, 372 306, 366 346 C378 354, 402 360, ${CX} 392`, CX);
+
+  // Muzzle: its side runs along the head's edge, its bottom is the chin.
+  const muzzle = symmetric(`M${CX} 662 C404 658, 382 676, 371 712 C376 735, 380 748, 388 754 ${chin}`, CX);
+
+  const eye = `
+    M318 478
+    C332 458, 356 460, 368 480
+    C356 496, 332 498, 318 478 Z`;
+
+  const nostril = `
+    M388 694
+    C374 694, 370 714, 382 722
+    C396 728, 404 712, 398 698 Z`;
+
+  return {
+    halo: { cx: CX, cy: 500, r: 245 },
+    regions: [
+      { name: 'mane', d: mane, families: ['strands'], spacing: 30, axis: [[CX, 560], [CX, 1100]] },
+      { name: 'neck', d: neck, families: ['scales', 'petals', 'chevrons', 'spirals', 'spots'], spacing: 60,
+        axis: [[CX, 700], [CX, 1100]], bands: [1, 2], calm: true },
+      { name: 'ear', d: ear }, { name: 'ear', d: mirrorPath(ear, CX) },
+      { name: 'ear', d: innerEar, families: ['scales', 'chevrons'], spacing: 26, axis: [[358, 312], [350, 206]] },
+      { name: 'ear', d: mirrorPath(innerEar, CX), families: ['scales', 'chevrons'], spacing: 26, axis: [[492, 312], [500, 206]] },
+      { name: 'head', d: head, families: ['petals', 'spirals', 'scales', 'chevrons', 'spots'], spacing: 46,
+        axis: [[CX, 290], [CX, 772]], bands: [2, 3] },
+      { name: 'forelock', d: forelock, families: ['strands'], spacing: 26, axis: [[CX, 286], [CX, 392]] },
+      { name: 'muzzle', d: muzzle, families: ['spirals', 'petals', 'scales'], spacing: 34, axis: [[CX, 662], [CX, 772]], calm: true, bands: [1, 1] },
+      { name: 'eye', d: eye }, { name: 'eye', d: mirrorPath(eye, CX) },
+      { name: 'nostril', d: nostril, thin: true }, { name: 'nostril', d: mirrorPath(nostril, CX), thin: true },
+    ],
+    details: [
+      el('circle', { cx: 342, cy: 478, r: 10 }), el('circle', { cx: 2 * CX - 342, cy: 478, r: 10 }),
+      el('circle', { cx: 342, cy: 478, r: 4, fill: 'black' }), el('circle', { cx: 2 * CX - 342, cy: 478, r: 4, fill: 'black' }),
+      detail(`M${CX - 30} 752 C${CX - 14} 758, ${CX + 14} 758, ${CX + 30} 752`),   // mouth
+    ].concat(
+      mirrored('M322 468 C318 460, 316 452, 316 444', CX),        // lashes
+      mirrored('M336 462 C334 454, 334 446, 335 438', CX),
+      mirrored('M322 444 C340 432, 364 430, 380 438', CX),        // brow
+      mirrored('M340 590 C344 618, 352 642, 364 660', CX),        // cheek line
+    ),
+  };
+}
+
+// Each animal has poses; a pose is a function that returns the regions.
+const ANIMALS = {
+  giraffe: { front: giraffeFront, profile: giraffe },
+  horse:   { front: horseFront,   profile: horse },
+};
 
 /* =====================================================================
    7. The frame and the halo
@@ -732,6 +938,7 @@ function drawHalo(ctx, halo) {
    ===================================================================== */
 function render(svg, settings) {
   const subject = settings.subject, detailName = settings.detail, seed = settings.seed;
+  const pose = ANIMALS[subject][settings.pose] ? settings.pose : 'front';
   svg.innerHTML = '';
   renderCounter++;
   idCounter = 0;
@@ -765,7 +972,7 @@ function render(svg, settings) {
   svg.appendChild(art);
 
   const ctx = { svg, defs, layer, rng, detail, recipe, weights };
-  const animal = ANIMALS[subject]();
+  const animal = ANIMALS[subject][pose]();
   cornerFan(ctx, inner.x, inner.y, 1, 1);
   cornerFan(ctx, inner.x + inner.w, inner.y, -1, 1);
   cornerFan(ctx, inner.x, inner.y + inner.h, 1, -1);
@@ -775,7 +982,7 @@ function render(svg, settings) {
   for (const d of animal.details) details.appendChild(d);
 
   // A small label in the bottom band so the seed survives on paper.
-  const label = `${subject} · seed ${seed} · detail ${detailName} · v${GENERATOR_VERSION}`;
+  const label = `${subject} ${pose} · seed ${seed} · detail ${detailName} · v${GENERATOR_VERSION}`;
   const lw = label.length * 6.2 + 24, ly = PAGE_H - FRAME.inset - FRAME.band / 2;
   svg.appendChild(el('rect', { x: PAGE_W / 2 - lw / 2, y: ly - 11, width: lw, height: 22,
     fill: 'white', stroke: 'black', 'stroke-width': STROKE.pattern }));

@@ -40,7 +40,8 @@ in and sees the other's favorites, is the planned next phase.
 1. Open the address above on any phone, tablet or computer. (Or download
    `index.html` and `generator.js` together and open `index.html` from
    Files; both files must sit side by side.)
-2. Pick an **Animal** (giraffe or horse) and a **Detail** level. Low gives
+2. Pick an **Animal** (giraffe or horse), a **Pose** (front face or
+   profile) and a **Detail** level. Low gives
    big calm areas and fewer, larger motifs; High packs in more bands, more
    halo rings and finer patterns.
 3. Press **Regenerate** until you see a page you like. Every press draws a
@@ -109,6 +110,10 @@ it (controls, printing). A few ideas make the whole thing hang together:
   SVG `clipPath`. Any pattern line that reaches the edge is cut there and
   the thick outline closes it. That is how every region ends up closed
   without any geometry math.
+- **Front faces are drawn once and mirrored.** A face seen from the
+  front is symmetric, so the left half is drawn by hand and the right
+  half is its mirror (`mirrorPath` and `symmetric` in `generator.js`).
+  Paired pieces such as ears and eyes are one path plus its mirror.
 - **Big regions are cut into bands.** Each large piece (the head, the
   neck) has an "axis". Wavy dividers cross that axis and each band between
   them gets its own pattern, or is left calm. Bands are clips nested
