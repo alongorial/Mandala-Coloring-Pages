@@ -11,6 +11,30 @@ frameworks, no server. Open it in a browser and print.
 (published from the `main` branch by GitHub Pages; the first publish
 happens when the "Publish to GitHub Pages" workflow runs after a merge).
 
+## On the tablet or phone: put it on the home screen
+
+1. Open the address above in Chrome.
+2. Tap the ⋮ menu (top right), then **Add to Home screen** (on some
+   versions it says **Install app**). On an iPhone, use Safari's share
+   button and **Add to Home Screen**.
+3. Accept the name "Coloring Pages". A green spiral icon appears on the
+   home screen and opens the generator full screen, without the browser
+   bar.
+
+The icon is a shortcut to the web address. When the repo changes, the icon
+opens the new version; there is nothing to reinstall. The tablet needs to
+be online to open it.
+
+## Sharing the link
+
+Anyone with the address can use it; there is nothing to sign up for. Send
+it as a text message, or set the icon up on their device as above.
+
+Favorites and taste weights live in the browser of the device they were
+made on. Two people on two devices have two separate sets, unless one
+exports and the other imports. A shared version, where each person signs
+in and sees the other's favorites, is the planned next phase.
+
 ## How to print a page
 
 1. Open the address above on any phone, tablet or computer. (Or download
@@ -117,6 +141,9 @@ it (controls, printing). A few ideas make the whole thing hang together:
   exercises).
 - `favorites.json`: curated ratings, pasted in from an export. Starts
   empty.
+- `manifest.webmanifest`, `icon.svg`, `icon-192.png`, `icon-512.png`:
+  the name and icon a device uses when the page is added to its home
+  screen. The PNGs are rendered from the SVG.
 - `.github/workflows/pages.yml`: publishes the repo to GitHub Pages
   whenever `main` changes.
 - `README.md`: this file.
