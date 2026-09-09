@@ -101,10 +101,7 @@
     </select>
   </label>
   <label>Pose
-    <select id="pose">
-      <option value="front">Front face</option>
-      <option value="profile">Profile</option>
-    </select>
+    <select id="pose"></select>
   </label>
   <label>Frame
     <select id="frame">
@@ -214,8 +211,19 @@ function readSettingsFromUrl() {
 function currentSettings() {
   return { subject: inputs.subject.value, pose: inputs.pose.value, frame: inputs.frame.value, detail: inputs.detail.value, seed: Number(inputs.seed.value) || 0 };
 }
+// The pose list depends on the animal (only the horse has a full body so far).
+function fillPoses(subject) {
+  const sel = inputs.pose;
+  sel.innerHTML = '';
+  for (const p of Object.keys(ANIMALS[subject])) {
+    const o = document.createElement('option');
+    o.value = p; o.textContent = POSE_LABELS[p] || p;
+    sel.appendChild(o);
+  }
+}
 function apply(settings) {
   inputs.subject.value = settings.subject;
+  fillPoses(settings.subject);
   inputs.pose.value = ANIMALS[settings.subject][settings.pose] ? settings.pose : 'front';
   settings.pose = inputs.pose.value;
   inputs.frame.value = settings.frame || 'square';
