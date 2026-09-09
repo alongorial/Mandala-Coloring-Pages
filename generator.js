@@ -21,7 +21,7 @@
 // Bump this whenever anything that affects the drawing changes. A seed
 // only reproduces a page for the version that made it, so the version is
 // printed on the page label and saved with every favorite.
-const GENERATOR_VERSION = 9;
+const GENERATOR_VERSION = 10;
 
 const PAGE_W = 850, PAGE_H = 1100;
 const STROKE = { outline: 4.5, divider: 3, pattern: 1.7, light: 1.3 };   // light: background ornament, still 0.33 mm
@@ -940,117 +940,108 @@ function horseFront() {
   };
 }
 
-/* ---------- Full body: a horse curled around a central mandala ---------- */
-// The body is a ring. Angles are SVG angles: 0 is to the right, 90 is
-// straight down, -90 straight up. The neck runs over the top (-140 to
-// -60), the barrel down the right side (-60 to 60), the haunch round the
-// bottom (60 to 118) and the tail up the left (118 to 205), tucking in
-// behind the head. Thickness changes along the way, which is most of
-// what makes it read as a body rather than a donut.
+/* ---------- Full body: a rearing horse in front of a light ring ---------- */
+// After the reference: the horse rears in profile facing right, forelegs
+// tucked, mane and tail streaming, with a ring of light ornament behind
+// it. Every piece is a hand-drawn closed path; the head is the profile
+// head mirrored to face right, shrunk and tilted down a little.
 function horseBody(rng, level) {
-  const cx = CX, cy = 570, R = 270;
-  const rad = (deg) => deg * Math.PI / 180;
-  const P = (deg, r) => [cx + Math.cos(rad(deg)) * r, cy + Math.sin(rad(deg)) * r];
-  const thick = (deg) => interp(deg, [[-140, 34], [-100, 42], [-60, 52], [0, 64], [60, 62], [90, 56], [118, 44], [150, 26], [180, 16], [205, 8]]);
-  const bulge = (a) => 16 * Math.max(0, Math.sin(rad((a - 60) / 58 * 180)));                 // rounded haunch
-  const outerEdge = (a) => R + thick(a) + bulge(a);
-  const innerEdge = (a) => R - thick(a);
-  // A curved band between two angles, with adjustable outer and inner edges.
-  function band(a0, a1, outer, inner) {
-    const pts = [];
-    for (let a = a0; a <= a1; a += 3) pts.push(P(a, outer(a)));
-    for (let a = a1; a >= a0; a -= 3) pts.push(P(a, inner(a)));
-    return polyPath(pts, true);
-  }
-  const locks = (a) => R + thick(a) + 12 * Math.pow(Math.sin(rad((a - 118) / 87 * 720)), 2);   // scalloped tail
-  const maneOut = (a) => R + thick(a) + 30 + 8 * Math.pow(Math.sin(rad((a + 145) / 85 * 900)), 2);
-
-  const body = band(-140, 118, outerEdge, innerEdge);
-  const mane = band(-145, -58, maneOut, (a) => R + thick(a) - 6);
-  const tail = band(118, 205, locks, innerEdge);
-
-  // The body's bands are wedges between wavy radial dividers, so the
-  // patterns change along the body without straight cuts.
-  const cuts = [];
-  const nCuts = Math.max(2, Math.min(4, 3 + level.bands));
-  for (let i = 1; i <= nCuts; i++) cuts.push(-140 + (258 * i) / (nCuts + 1) + rng.range(-12, 12));
-  const wavyRadial = (a) => {
-    const pts = [], phase = rng.range(0, 6.28);
-    for (let r = innerEdge(a) - 30; r <= outerEdge(a) + 60; r += 8) pts.push(P(a + 2.5 * Math.sin(r / 22 + phase), r));
-    return pts;
-  };
-  const cutLines = cuts.map(wavyRadial);
-  const wedge = (a0, a1, line0, line1) => {
-    const pts = [[cx, cy]];
-    for (const p of line0) pts.push(p);
-    for (let a = a0; a <= a1; a += 4) pts.push(P(a, 560));
-    for (let i = line1.length - 1; i >= 0; i--) pts.push(line1[i]);
-    return polyPath(pts, true);
-  };
-  const straight = (a) => [P(a, innerEdge(a) - 30), P(a, 560)];
-  const bandPolygons = [];
-  const edgeAngles = [-150].concat(cuts, [125]);
-  const edgeLines = [straight(-150)].concat(cutLines, [straight(125)]);
-  for (let i = 0; i < edgeAngles.length - 1; i++) {
-    bandPolygons.push(wedge(edgeAngles[i], edgeAngles[i + 1], edgeLines[i], edgeLines[i + 1]));
-  }
-
-  // The head is the profile head, shrunk and turned to hang down-left
-  // from the end of the neck. (505, 480) on the profile head is where the
-  // neck joins; it lands on the neck's end point.
-  const anchor = P(-130, R);
-  const turn = rad(-38), k = 0.52;
-  const place = (x, y) => {
-    const dx = (x - 505) * k, dy = (y - 480) * k;
-    return [anchor[0] + dx * Math.cos(turn) - dy * Math.sin(turn), anchor[1] + dx * Math.sin(turn) + dy * Math.cos(turn)];
-  };
-  const tp = (d) => transformPath(d, place);
+  // Head: mirror the profile head, scale it about its poll, tilt it.
   const prof = horse();
   const byName = (name, nth) => prof.regions.filter(r => r.name === name)[nth || 0];
+  const k = 0.54, tilt = 22 * Math.PI / 180, poll = [626, 284];
+  const place = (x, y) => {
+    const dx = (850 - x - 345) * k, dy = (y - 250) * k;      // 850 - x mirrors the profile to face right
+    return [poll[0] + dx * Math.cos(tilt) - dy * Math.sin(tilt), poll[1] + dx * Math.sin(tilt) + dy * Math.cos(tilt)];
+  };
+  const tp = (d) => transformPath(d, place);
   const head = tp(byName('head').d);
   const forelock = tp(byName('forelock').d);
-  const ears = [byName('ear', 0), byName('ear', 1)].map(r => tp(r.d));   // back ear, front ear
+  const ears = [byName('ear', 0), byName('ear', 1)].map(r => tp(r.d));
   const innerEar = tp(byName('ear', 2).d);
   const eye = tp(byName('eye').d);
   const nostril = tp(byName('nostril').d);
   const [ex, ey] = place(394, 320);
 
-  // Legs, folded. The hind leg lies along the bottom of the ring with
-  // the hoof pointing forward (left); the foreleg folds down the inside
-  // of the tail. Each hoof is its own small plain region.
-  const hindLeg = `
-    M480 792 C458 762, 434 732, 400 730
-    C356 728, 316 736, 296 752
-    C282 764, 286 782, 304 786
-    C324 790, 344 782, 356 774
-    C384 768, 424 770, 450 784
-    C462 790, 470 796, 480 800 Z`;
-  const hindHoof = `M292 750 C280 762, 282 782, 298 788 C314 792, 332 786, 342 774 C334 760, 316 752, 300 750 Z`;
-  const foreLeg = `
-    M226 536 C244 566, 246 598, 240 630
-    C238 656, 250 680, 272 692
-    C284 700, 280 714, 264 712
-    C238 706, 216 682, 212 650
-    C208 616, 210 582, 204 556
-    C202 544, 210 536, 226 536 Z`;
-  const foreHoof = `M258 684 C270 690, 282 698, 284 712 C278 722, 262 724, 250 716 C242 706, 246 692, 258 684 Z`;
+  // Body: withers, back down to the croup, rump, belly up to the chest, throat.
+  const body = `
+    M470 400
+    C420 460, 360 540, 320 630
+    C280 690, 250 750, 275 800
+    C300 818, 340 812, 360 800
+    C420 770, 500 690, 560 600
+    C590 560, 604 500, 594 452
+    C560 420, 512 400, 470 400 Z`;
 
-  const chord = (a0, a1) => [P(a0, R), P(a1, R)];
-  const bodyFamilies = ['scales', 'petals', 'chevrons', 'spirals', 'spots'];
+  // Neck: withers to poll along the crest, then down the throat to the chest.
+  const neck = `
+    M470 400
+    C520 350, 580 300, 640 282
+    C670 300, 690 320, 692 336
+    C660 372, 622 418, 592 450
+    C560 420, 512 400, 470 400 Z`;
+
+  // Mane: streams back from the poll in three locks.
+  const mane = `
+    M640 282
+    C600 236, 540 228, 500 250
+    C512 262, 514 274, 506 284
+    C460 296, 420 330, 396 380
+    C412 372, 424 372, 432 376
+    C392 400, 362 432, 346 470
+    C380 440, 420 410, 470 400
+    C520 350, 580 300, 640 282 Z`;
+
+  // Tail: from the croup, sweeping down and left, ending in two locks.
+  const tail = `
+    M330 640
+    C270 636, 206 690, 180 770
+    C164 820, 150 870, 128 918
+    C160 908, 186 886, 206 852
+    C196 892, 206 926, 240 946
+    C246 900, 254 860, 276 826
+    C296 792, 300 720, 330 640 Z`;
+
+  // Legs. Hind legs stand on the ground; forelegs fold up under the chest.
+  const hindLeg = `
+    M244 782
+    C252 830, 270 870, 286 902
+    C290 930, 292 950, 288 966
+    L334 968
+    C338 948, 334 926, 328 902
+    C322 868, 318 830, 332 792
+    C316 800, 290 800, 244 782 Z`;
+  const hindHoof = `M284 944 C278 958, 282 972, 298 974 L334 972 C340 960, 336 946, 328 942 Z`;
+  const foreLeg = `
+    M540 570
+    C580 578, 612 592, 632 616
+    C648 638, 640 668, 620 684
+    C606 690, 594 686, 592 674
+    C604 656, 610 636, 596 618
+    C578 604, 552 604, 540 612 Z`;
+  const foreHoof = `M590 666 C582 680, 590 694, 606 694 C622 694, 630 680, 624 666 Z`;
+  const shift = (d, dx, dy) => transformPath(d, (x, y) => [x + dx, y + dy]);
+
+  const legFamilies = ['scales', 'chevrons', 'petals', 'diamonds'];
+  const bodyFamilies = ['petals', 'spirals', 'scales', 'chevrons', 'spots', 'diamonds'];
   return {
-    halo: { cx, cy, r: 40 },
+    halo: { cx: 425, cy: 600, r: 238 },
     regions: [
-      { name: 'tail',   d: tail,   families: ['strands'], spacing: 26, axis: chord(118, 205) },
-      { name: 'mane',   d: mane,   families: ['strands'], spacing: 26, axis: chord(-145, -58) },
-      { name: 'body',   d: body,   families: bodyFamilies, spacing: 54, axis: chord(-140, 118), calm: true,
-        bandPolygons, dividerPaths: cutLines.map(l => polyPath(l)) },
-      { name: 'leg',    d: hindLeg, families: ['scales', 'chevrons', 'petals'], spacing: 30, axis: [[296, 754], [480, 790]] },
-      { name: 'hoof',   d: hindHoof, thin: true },
-      { name: 'leg',    d: foreLeg, families: ['scales', 'chevrons', 'petals'], spacing: 28, axis: [[214, 540], [268, 700]] },
-      { name: 'hoof',   d: foreHoof, thin: true },
+      { name: 'tail', d: tail, families: ['strands'], spacing: 26, axis: [[330, 640], [190, 900]] },
+      { name: 'leg', d: shift(hindLeg, 46, -8), families: legFamilies, spacing: 26, axis: [[300, 780], [300, 960]] },
+      { name: 'hoof', d: shift(hindHoof, 46, -8), thin: true },
+      { name: 'leg', d: shift(foreLeg, -34, 24), families: legFamilies, spacing: 24, axis: [[540, 590], [610, 680]] },
+      { name: 'hoof', d: shift(foreHoof, -32, 22), thin: true },
+      { name: 'body', d: body, families: bodyFamilies, spacing: 54, axis: [[300, 760], [560, 480]], bands: [2, 3], calm: true },
+      { name: 'leg', d: hindLeg, families: legFamilies, spacing: 26, axis: [[262, 790], [310, 960]] },
+      { name: 'hoof', d: hindHoof, thin: true },
+      { name: 'leg', d: foreLeg, families: legFamilies, spacing: 24, axis: [[540, 590], [610, 680]] },
+      { name: 'hoof', d: foreHoof, thin: true },
+      { name: 'mane', d: mane, families: ['strands'], spacing: 26, axis: [[640, 282], [380, 420]] },
+      { name: 'neck', d: neck, families: bodyFamilies, spacing: 44, axis: [[500, 410], [660, 320]], bands: [1, 2] },
       { name: 'ear', d: ears[0] }, { name: 'ear', d: ears[1] },
-      { name: 'ear', d: innerEar, families: ['scales', 'chevrons'], spacing: 24, axis: [place(454, 240), place(456, 140)] },
-      { name: 'head',   d: head,   families: ['petals', 'spirals', 'scales', 'chevrons', 'spots'], spacing: 34,
+      { name: 'ear', d: innerEar, families: ['petals', 'scales'], spacing: 22, axis: [place(454, 240), place(456, 140)] },
+      { name: 'head', d: head, families: ['petals', 'spirals', 'scales', 'chevrons', 'spots'], spacing: 34,
         axis: [place(172, 480), place(540, 340)], bands: [2, 3] },
       { name: 'forelock', d: forelock, families: ['strands'], spacing: 24, axis: [place(470, 232), place(392, 310)] },
       { name: 'eye', d: eye },
@@ -1107,7 +1098,7 @@ function drawFrame(ctx, kind, pose) {
     return {
       clipD: circlePath(cx, cy, rIn),
       // Profiles were drawn for the full page, so they shrink a bit more.
-      scale: pose === 'profile' ? 0.82 : pose === 'body' ? 0.84 : 0.88, center: [cx, cy],
+      scale: pose === 'profile' ? 0.82 : pose === 'body' ? 0.78 : 0.88, center: [cx, cy],
       maxHalo: rIn - 10, lines,
     };
   }

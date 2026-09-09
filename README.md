@@ -41,7 +41,7 @@ in and sees the other's favorites, is the planned next phase.
    `index.html` and `generator.js` together and open `index.html` from
    Files; both files must sit side by side.)
 2. Pick an **Animal** (giraffe or horse), a **Pose** (front face,
-   profile, or for the horse a full body curled around a mandala), a
+   profile, or for the horse a rearing full body), a
    **Frame** (square, round, or let the seed decide) and a **Detail**
    level. Low gives
    big calm areas and fewer, larger motifs; High packs in more bands, more
@@ -116,12 +116,11 @@ it (controls, printing). A few ideas make the whole thing hang together:
   front is symmetric, so the left half is drawn by hand and the right
   half is its mirror (`mirrorPath` and `symmetric` in `generator.js`).
   Paired pieces such as ears and eyes are one path plus its mirror.
-- **The curled horse is a ring with a changing thickness.** The full
-  body pose (`horseBody`) draws the body as a ring around the page
-  centre, sampled every three degrees, with a thickness that varies from
-  the neck to the haunch to the tail. Its head is the profile head,
-  shrunk and turned by `transformPath`. The body's bands are wedges
-  between wavy radial dividers, which the region brings with it.
+- **The full-body horse rears in front of a light ring.** The pose
+  (`horseBody`) is a set of hand-drawn closed paths: body, neck, four
+  legs with hooves, a streaming mane and tail. Its head is the profile
+  head mirrored to face right, shrunk and tilted with `transformPath`.
+  The halo rings sit behind it, drawn lighter, as in the reference.
 - **Big regions are cut into bands.** Each large piece (the head, the
   neck) has an "axis". Wavy dividers cross that axis and each band between
   them gets its own pattern, or is left calm. Bands are clips nested
