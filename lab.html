@@ -101,6 +101,7 @@
       <option value="giraffe">Giraffe</option>
       <option value="horse">Horse</option>
     </select>
+    <select id="pose"></select>
   </label>
   <svg class="anatomy" id="anatomy" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850 1100"></svg>
 </section>
@@ -174,11 +175,24 @@ $('all-spacing').addEventListener('input', updateAll);
 updateAll();
 
 /* ---------- Anatomy ---------- */
+function fillPoses() {
+  const poses = Object.keys(ANIMALS[$('animal').value]);
+  const sel = $('pose');
+  const keep = sel.value;
+  sel.innerHTML = '';
+  for (const p of poses) {
+    const o = document.createElement('option');
+    o.value = p; o.textContent = p;
+    sel.appendChild(o);
+  }
+  sel.value = poses.indexOf(keep) >= 0 ? keep : poses[0];
+}
 function drawAnatomy() {
+  fillPoses();
   const svg = $('anatomy');
   svg.innerHTML = '';
   svg.appendChild(el('rect', { width: PAGE_W, height: PAGE_H, fill: 'white' }));
-  const animal = ANIMALS[$('animal').value]();
+  const animal = ANIMALS[$('animal').value][$('pose').value]();
   const grays = ['#e6e6e6', '#d2d2d2', '#bdbdbd', '#f2f2f2', '#c8c8c8'];
   // The halo centre: the point the background rings are drawn around.
   svg.appendChild(el('circle', { cx: animal.halo.cx, cy: animal.halo.cy, r: animal.halo.r, fill: 'none', stroke: '#bbb', 'stroke-dasharray': '8 8', 'stroke-width': 2 }));
@@ -206,6 +220,7 @@ function drawAnatomy() {
   });
 }
 $('animal').addEventListener('change', drawAnatomy);
+$('pose').addEventListener('change', drawAnatomy);
 drawAnatomy();
 </script>
 </body>
